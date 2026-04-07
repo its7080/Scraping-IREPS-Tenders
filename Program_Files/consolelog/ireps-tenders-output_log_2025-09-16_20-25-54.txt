@@ -1,0 +1,39 @@
+Starting script execution at 2025-09-16_20-25-54
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\RAIL VIKAS NIGAM LIMITED' does not exist.
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\IRCON INTERNATIONAL LIMITED' does not exist.
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do  -  Module under maintenance
+Current Mobile NO.  7059141480
+The OTP for today is: 507583
+Exception occurred during script execution: Message: no such element: Unable to locate element: {"method":"css selector","selector":"[id="imgCaptcha"]"}
+  (Session info: chrome=139.0.7258.157); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#nosuchelementexception
+Stacktrace:
+	GetHandleVerifier [0x0xaca8a3+63283]
+	GetHandleVerifier [0x0xaca8e4+63348]
+	(No symbol) [0x0x903e43]
+	(No symbol) [0x0x94c8de]
+	(No symbol) [0x0x94cc7b]
+	(No symbol) [0x0x994ef2]
+	(No symbol) [0x0x971464]
+	(No symbol) [0x0x99271a]
+	(No symbol) [0x0x971216]
+	(No symbol) [0x0x940855]
+	(No symbol) [0x0x9416f4]
+	GetHandleVerifier [0x0xd3bb43+2623955]
+	GetHandleVerifier [0x0xd36daa+2604090]
+	GetHandleVerifier [0x0xaf069a+218410]
+	GetHandleVerifier [0x0xae0ed8+154984]
+	GetHandleVerifier [0x0xae742d+180925]
+	GetHandleVerifier [0x0xad22b8+94536]
+	GetHandleVerifier [0x0xad2442+94930]
+	GetHandleVerifier [0x0xabd5ea+9338]
+	BaseThreadInitThunk [0x0x75ed5d49+25]
+	RtlInitializeExceptionChain [0x0x774cd6db+107]
+	RtlGetAppContainerNamedObjectPath [0x0x774cd661+561]
+

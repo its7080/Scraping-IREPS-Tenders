@@ -1,0 +1,25 @@
+Starting script execution at 2025-09-16_17-20-30
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\RAIL VIKAS NIGAM LIMITED' does not exist.
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\IRCON INTERNATIONAL LIMITED' does not exist.
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+No atching OTP found for today's date.
+Predicted text: hp5n7
+Alert Text: you have entered wrong verification code.
+Predicted text: rdcbw
+Alert Text: you have entered wrong verification code.
+Predicted text: 7n4md
+Alert Text: you have entered wrong verification code.
+Predicted text: hewcm
+No alert present after clicking 'Get OTP'
+No alert present after clicking 'Get OTP'
+No alert present after clicking 'Get OTP'
+No alert present after clicking 'Get OTP'
+generate_otp 60 secondsgenerate_otp 59 secondsgenerate_otp 58 secondsgenerate_otp 57 secondsgenerate_otp 56 secondsgenerate_otp 55 secondsgenerate_otp 54 secondsgenerate_otp 53 secondsgenerate_otp 52 secondsgenerate_otp 51 secondsgenerate_otp 50 secondsgenerate_otp 49 secondsgenerate_otp 48 secondsgenerate_otp 47 secondsgenerate_otp 46 secondsgenerate_otp 45 secondsgenerate_otp 44 secondsgenerate_otp 43 secondsgenerate_otp 42 secondsgenerate_otp 41 secondsgenerate_otp 40 secondsgenerate_otp 39 secondsgenerate_otp 38 secondsgenerate_otp 37 secondsgenerate_otp 36 secondsgenerate_otp 35 secondsgenerate_otp 34 secondsgenerate_otp 33 secondsgenerate_otp 32 secondsgenerate_otp 31 secondsgenerate_otp 30 seconds

@@ -1,0 +1,38 @@
+Starting script execution at 2025-09-17_17-53-51
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\RAIL VIKAS NIGAM LIMITED' does not exist.
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\IRCON INTERNATIONAL LIMITED' does not exist.
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+Exception occurred during script execution: Message: session not created: This version of ChromeDriver only supports Chrome version 140
+Current browser version is 139.0.7258.157 with binary path C:\Program Files\Google\Chrome\Application\chrome.exe; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
+Stacktrace:
+	GetHandleVerifier [0x0x3ad2a3+66419]
+	GetHandleVerifier [0x0x3ad2e4+66484]
+	(No symbol) [0x0x184bd3]
+	(No symbol) [0x0x1bfc48]
+	(No symbol) [0x0x1bec29]
+	(No symbol) [0x0x1ba18c]
+	(No symbol) [0x0x1b4d7a]
+	(No symbol) [0x0x1fcce4]
+	(No symbol) [0x0x1fc5ea]
+	(No symbol) [0x0x1f0e16]
+	(No symbol) [0x0x1c25ce]
+	(No symbol) [0x0x1c34a4]
+	GetHandleVerifier [0x0x5f5ee3+2461619]
+	GetHandleVerifier [0x0x5f0f66+2441270]
+	GetHandleVerifier [0x0x3d6242+234258]
+	GetHandleVerifier [0x0x3c6208+168664]
+	GetHandleVerifier [0x0x3cd1ad+197245]
+	GetHandleVerifier [0x0x3b55f8+100040]
+	GetHandleVerifier [0x0x3b5792+100450]
+	GetHandleVerifier [0x0x39f74a+10266]
+	BaseThreadInitThunk [0x0x75ed5d49+25]
+	RtlInitializeExceptionChain [0x0x774cd6db+107]
+	RtlGetAppContainerNamedObjectPath [0x0x774cd661+561]
+	(No symbol) [0x0]
+

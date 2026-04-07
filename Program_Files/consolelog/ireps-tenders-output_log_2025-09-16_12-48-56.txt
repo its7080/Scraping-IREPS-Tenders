@@ -1,0 +1,14 @@
+Starting script execution at 2025-09-16_12-48-56
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\RAIL VIKAS NIGAM LIMITED' does not exist.
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\IRCON INTERNATIONAL LIMITED' does not exist.
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+No atching OTP found for today's date.
+Exception occurred during script execution: Unknown layer: CTCLayer. Please ensure this object is passed to the `custom_objects` argument. See https://www.tensorflow.org/guide/keras/save_and_serialize#registering_the_custom_object for details.

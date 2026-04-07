@@ -1,0 +1,146 @@
+Starting script execution at 2025-09-20_08-11-29
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\RAIL VIKAS NIGAM LIMITED' does not exist.
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\IRCON INTERNATIONAL LIMITED' does not exist.
+Android device is connected.
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+No atching OTP found for today's date.
+Predicted text: 4f3ff
+No alert present after clicking 'Get OTP'
+generate_otp 60 secondsgenerate_otp 59 secondsgenerate_otp 58 secondsgenerate_otp 57 secondsgenerate_otp 56 secondsgenerate_otp 55 secondsgenerate_otp 54 secondsgenerate_otp 53 secondsgenerate_otp 52 secondsgenerate_otp 51 secondsgenerate_otp 50 secondsgenerate_otp 49 secondsgenerate_otp 48 secondsgenerate_otp 47 secondsgenerate_otp 46 secondsgenerate_otp 45 secondsgenerate_otp 44 secondsgenerate_otp 43 secondsgenerate_otp 42 secondsgenerate_otp 41 secondsgenerate_otp 40 secondsgenerate_otp 39 secondsgenerate_otp 38 secondsgenerate_otp 37 secondsgenerate_otp 36 secondsgenerate_otp 35 secondsgenerate_otp 34 secondsgenerate_otp 33 secondsgenerate_otp 32 secondsgenerate_otp 31 secondsgenerate_otp 30 secondsgenerate_otp 29 secondsgenerate_otp 28 secondsgenerate_otp 27 secondsgenerate_otp 26 secondsgenerate_otp 25 secondsgenerate_otp 24 secondsgenerate_otp 23 secondsgenerate_otp 22 secondsgenerate_otp 21 secondsgenerate_otp 20 secondsgenerate_otp 19 secondsgenerate_otp 18 secondsgenerate_otp 17 secondsgenerate_otp 16 secondsgenerate_otp 15 secondsgenerate_otp 14 secondsgenerate_otp 13 secondsgenerate_otp 12 secondsgenerate_otp 11 secondsgenerate_otp 10 secondsgenerate_otp 9 secondsgenerate_otp 8 secondsgenerate_otp 7 secondsgenerate_otp 6 secondsgenerate_otp 5 secondsgenerate_otp 4 secondsgenerate_otp 3 secondsgenerate_otp 2 secondsgenerate_otp 1 seconds    Time's up!                              
+OTP: 227183
+Predicted text: ap3ew
+Attempt 1 failed - Exception: Alert Text: you have entered wrong verification code.
+Message: unexpected alert open: {Alert text : you have entered wrong verification code.}
+  (Session info: chrome=140.0.7339.128)
+Stacktrace:
+	GetHandleVerifier [0x0x1260c13+66051]
+	GetHandleVerifier [0x0x1260c54+66116]
+	(No symbol) [0x0x103db33]
+	(No symbol) [0x0x10cc140]
+	(No symbol) [0x0x10a9d86]
+	(No symbol) [0x0x107b53e]
+	(No symbol) [0x0x107c414]
+	GetHandleVerifier [0x0x14a8a13+2457603]
+	GetHandleVerifier [0x0x14a39d2+2437058]
+	GetHandleVerifier [0x0x12897f2+232930]
+	GetHandleVerifier [0x0x1279a18+167944]
+	GetHandleVerifier [0x0x128092d+196381]
+	GetHandleVerifier [0x0x1268ee8+99544]
+	GetHandleVerifier [0x0x1269082+99954]
+	GetHandleVerifier [0x0x125322a+10266]
+	BaseThreadInitThunk [0x0x75ed5d49+25]
+	RtlInitializeExceptionChain [0x0x774cd6db+107]
+	RtlGetAppContainerNamedObjectPath [0x0x774cd661+561]
+
+Predicted text: wd2ye
+
+--------- ZONE LIST ---------
+RVNL
+
+Scraping ZONE -> RVNL
+----------------
+
+Tender search results  4
+Pages =  1
+Tender  : 1   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/79674099/viewNitPdf_4840488.pdf
+Download successful
+Department: PIU-KOLKATA-2-CIVIL/RVNL
+Tender No: RVNL_KOL_Metro_Joka-IIM
+Name of Work: Construction of Metro Railway Viaduct from Ch. (-) 495.769m to Ch. (-) 2046.594m = 1370.825 m (excluding IIM Station) in between Joka Metro Station to IIM Metro Station and one elevated Metro Station (IIM Station) in connection with Joka- Diamond Park (Phase-I) of Metro Railway Project in Kolkata, West Bengal, India.
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 07/10/2025 15:00
+Date and Time of Uploading Tender: 26/07/2025 16:55
+Pre-Bid Conference Date and Time: 20/08/2025 11:30
+Advertised Value: 3778201812.74
+Earnest Money: 20000000.00
+Contract Type: Works - General
+Tender  : 2   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/84374370/viewNitPdf_5116317.pdf
+Download successful
+Department: PIU-AHEMDABAD-ELECTRICAL/RVNL
+Tender No: RVNL-ADI-RE-DOKTSS-2025-2
+Name of Work: Design supply, erection, testing Commissioning of supply arrangement of drawl of 10.14 MW power under LTOA for Dholka TSS from GETCO 220 kV Salejada (GETCO) substation along with erection 02 Nos of 220kV Feeder bays at 220kV Salejada (GETCO) and ABT meter under Bhavnagar division of Western railway Gujarat In
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 08/10/2025 12:00
+Date and Time of Uploading Tender: 16/09/2025 13:25
+Pre-Bid Conference Date and Time: 22/09/2025 12:00
+Advertised Value: 186156378.38
+Earnest Money: 3723200.00
+Contract Type: Works - General
+Tender  : 3   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/84170946/viewNitPdf_5105415.pdf
+Download successful
+Department: PIU-KOLKATA-1-ELECTRICAL/RVNL
+Tender No: RVNL-KOL-EL-METRO-16A
+Name of Work: Design, Supply, Erection, Testing and Commissioning of ECS and TVS for 4 underground metro stations including tunnel in Joka-Esplanade Corridor of Metro Railway, Kolkata (West Bengal), India
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 13/10/2025 11:00
+Date and Time of Uploading Tender: 06/09/2025 20:47
+Pre-Bid Conference Date and Time: 12/09/2025 14:30
+Advertised Value: 3058158664.51
+Earnest Money: 20000000.00
+Contract Type: Works - General
+Tender  : 4   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/83076976/viewNitPdf_5042128.pdf
+Download successful
+Department: PIU-KOLKATA-1-ELECTRICAL/RVNL
+Tender No: RVNL-KOL-EL-METRO-18
+Name of Work: General Electrical, Power Distribution, Lift, Fire detection & Alarm and Fire Fighting works for 240 nos. Dwelling Units (DUs) at Panagarh Military Station, West Bengal, India
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 14/10/2025 11:00
+Date and Time of Uploading Tender: 30/08/2025 17:20
+Pre-Bid Conference Date and Time: 15/09/2025 11:30
+Advertised Value: 127576778.30
+Earnest Money: 2550000.00
+Contract Type: Works - General
+
+
+Zone data Saved.
+
+
+Exeting.... From RAIL VIKAS NIGAM LIMITED.
+
+
+
+
+
+Running Orginazation. 15: IRCON INTERNATIONAL LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+The OTP for today is: 227183
+Predicted text: nn3dn
+
+--------- ZONE LIST ---------
+IRCON Corporate Office
+
+Scraping ZONE -> IRCON Corporate Office
+----------------
+
+Pages =  0
+Zone data Saved.
+
+
+Exeting.... From IRCON INTERNATIONAL LIMITED.
+
+
+
+
+Master xlsx saved in  F:\IREPS-Tenders\Scraping\datadump\merged_IREPS_2025-09-20_08-15-02.xlsx
+Master xlsx saved in  F:\IREPS-Tenders\Scraping\Program_Files\merged_IREPS_2025-09-20_08-15-04.xlsx
+F:\IREPS-Tenders\Scraping\Program_Files ['am7059141480@gmail.com', 'anupammanna07@gmail.com']
+
+Email sent successfully!
+Exeting in ...  10 secondsExeting in ...  9 secondsExeting in ...  8 secondsExeting in ...  7 secondsExeting in ...  6 secondsExeting in ...  5 secondsExeting in ...  4 secondsExeting in ...  3 secondsExeting in ...  2 secondsExeting in ...  1 seconds    Time's up!                              

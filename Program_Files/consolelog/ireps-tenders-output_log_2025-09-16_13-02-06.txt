@@ -1,0 +1,30 @@
+Starting script execution at 2025-09-16_13-02-06
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\RAIL VIKAS NIGAM LIMITED' does not exist.
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\IRCON INTERNATIONAL LIMITED' does not exist.
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+No atching OTP found for today's date.
+Exception occurred during script execution: in user code:
+
+    File "G:\keras_ocr\venv\lib\site-packages\keras\engine\training.py", line 2041, in predict_function  *
+        return step_function(self, iterator)
+    File "G:\keras_ocr\venv\lib\site-packages\keras\engine\training.py", line 2027, in step_function  **
+        outputs = model.distribute_strategy.run(run_step, args=(data,))
+    File "G:\keras_ocr\venv\lib\site-packages\keras\engine\training.py", line 2015, in run_step  **
+        outputs = model.predict_step(data)
+    File "G:\keras_ocr\venv\lib\site-packages\keras\engine\training.py", line 1983, in predict_step
+        return self(x, training=False)
+    File "G:\keras_ocr\venv\lib\site-packages\keras\utils\traceback_utils.py", line 70, in error_handler
+        raise e.with_traceback(filtered_tb) from None
+    File "G:\keras_ocr\venv\lib\site-packages\keras\engine\input_spec.py", line 216, in assert_input_compatibility
+        raise ValueError(
+
+    ValueError: Layer "ocr_model_v1" expects 2 input(s), but it received 1 input tensors. Inputs received: [<tf.Tensor 'IteratorGetNext:0' shape=(None, 50, 200, 1) dtype=float32>]
+

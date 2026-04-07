@@ -1,0 +1,127 @@
+Starting script execution at 2025-09-11_14-44-07
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+The OTP for today is: 202100
+Enter CAPTCHA from the image: 
+--------- ZONE LIST ---------
+RVNL
+
+Scraping ZONE -> RVNL
+----------------
+
+Tender search results  5
+Pages =  1
+Tender  : 1   https://www.ireps.gov.in/ireps/works/pdfdocs/092025/82266339/viewNitPdf_4990250.pdf
+Download successful
+Department: PIU-RISHIKESH-ELECTRICAL/RVNL
+Tender No: RVNL-RKSH-ELEC-GE-3-2025
+Name of Work: Supply, Erection, Testing & Commissioning Of Electro Mechanical (E&M) System comprising of 33/11kv & 11/0.433kv GIS Substations, HT & LT Cables, DG Sets, Lighting, Ups System, Ventilation Systems & Fire Fighting Systems and other associated works for Tunnel T-1, T-2, T-3 & T-4 under package E-1 Of Rishikesh Karnprayag New BG Rail Line Project In The State Of Uttarakhand.
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 12/09/2025 11:00
+Date and Time of Uploading Tender: 06/06/2025 11:59
+Pre-Bid Conference Date and Time: 20/06/2025 11:30
+Advertised Value: 4340085560.19
+Earnest Money: 20000000.00
+Contract Type: Works - General
+Tender  : 2   https://www.ireps.gov.in/ireps/works/pdfdocs/092025/83802147/viewNitPdf_5082922.pdf
+Download successful
+Department: PIU-AHEMDABAD-ELECTRICAL/RVNL
+Tender No: RVNL-ADI-RE-DOK-TSS-2025-
+Name of Work: Design supply, erection, testing Commissioning of supply arrangement of drawl of 10.14 MW power under LTOA for Dholka TSS from GETCO 220 kV Salejada (GETCO) substation along with erection 02 Nos of 220kV Feeder bays at 220kV Salejada (GETCO) and ABT meter under Bhavnagar division of Western railway Gujarat In
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 15/09/2025 12:00
+Date and Time of Uploading Tender: 19/08/2025 13:31
+Pre-Bid Conference Date and Time: 26/08/2025 12:30
+Advertised Value: 186156378.38
+Earnest Money: 3723200.00
+Contract Type: Works - General
+Tender  : 3   https://www.ireps.gov.in/ireps/works/pdfdocs/092025/79674099/viewNitPdf_4840488.pdf
+Download successful
+Department: PIU-KOLKATA-2-CIVIL/RVNL
+Tender No: RVNL_KOL_Metro_Joka-IIM
+Name of Work: Construction of Metro Railway Viaduct from Ch. (-) 495.769m to Ch. (-) 2046.594m = 1370.825 m (excluding IIM Station) in between Joka Metro Station to IIM Metro Station and one elevated Metro Station (IIM Station) in connection with Joka- Diamond Park (Phase-I) of Metro Railway Project in Kolkata, West Bengal, India.
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 22/09/2025 15:00
+Date and Time of Uploading Tender: 26/07/2025 16:55
+Pre-Bid Conference Date and Time: 20/08/2025 11:30
+Advertised Value: 3778201812.74
+Earnest Money: 20000000.00
+Contract Type: Works - General
+Tender  : 4   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/84170946/viewNitPdf_5105415.pdf
+Download successful
+Department: PIU-KOLKATA-1-ELECTRICAL/RVNL
+Tender No: RVNL-KOL-EL-METRO-16A
+Name of Work: Design, Supply, Erection, Testing and Commissioning of ECS and TVS for 4 underground metro stations including tunnel in Joka-Esplanade Corridor of Metro Railway, Kolkata (West Bengal), India
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 13/10/2025 11:00
+Date and Time of Uploading Tender: 06/09/2025 20:47
+Pre-Bid Conference Date and Time: 12/09/2025 14:30
+Advertised Value: 3058158664.51
+Earnest Money: 20000000.00
+Contract Type: Works - General
+Tender  : 5   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/83076976/viewNitPdf_5042128.pdf
+Download successful
+Department: PIU-KOLKATA-1-ELECTRICAL/RVNL
+Tender No: RVNL-KOL-EL-METRO-18
+Name of Work: General Electrical, Power Distribution, Lift, Fire detection & Alarm and Fire Fighting works for 240 nos. Dwelling Units (DUs) at Panagarh Military Station, West Bengal, India
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 14/10/2025 11:00
+Date and Time of Uploading Tender: 30/08/2025 17:20
+Pre-Bid Conference Date and Time: 15/09/2025 11:30
+Advertised Value: 127576778.30
+Earnest Money: 2550000.00
+Contract Type: Works - General
+
+
+Zone data Saved.
+
+
+Exeting.... From RAIL VIKAS NIGAM LIMITED.
+
+
+
+
+
+Running Orginazation. 15: IRCON INTERNATIONAL LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+The OTP for today is: 202100
+Enter CAPTCHA from the image: 
+--------- ZONE LIST ---------
+IRCON Corporate Office
+
+Scraping ZONE -> IRCON Corporate Office
+----------------
+
+Pages =  0
+Zone data Saved.
+
+
+Exeting.... From IRCON INTERNATIONAL LIMITED.
+
+
+
+
+Master xlsx saved in  F:\IREPS-Tenders\Scraping\data-dump\merged_IREPS_2025-09-11_14-46-33.xlsx
+Master xlsx saved in  F:\IREPS-Tenders\Scraping\Program_Files\merged_IREPS_2025-09-11_14-46-35.xlsx
+F:\IREPS-Tenders\Scraping\Program_Files ['am7059141480@gmail.com', 'anupammanna07@gmail.com']
+
+Email sent successfully!
+Exeting in ...  10 secondsExeting in ...  9 secondsExeting in ...  8 secondsExeting in ...  7 secondsExeting in ...  6 secondsExeting in ...  5 secondsExeting in ...  4 secondsExeting in ...  3 secondsExeting in ...  2 secondsExeting in ...  1 seconds    Time's up!                              

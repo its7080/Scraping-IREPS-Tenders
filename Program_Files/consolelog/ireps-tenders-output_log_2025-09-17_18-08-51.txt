@@ -1,0 +1,90 @@
+Starting script execution at 2025-09-17_18-08-51
+
+Internet connection is available.
+
+|-----| Welcome to the IREPS Scraping system! |-----|
+
+The folder 'F:\IREPS-Tenders\Scraping\Program_Files\IRCON INTERNATIONAL LIMITED' does not exist.
+
+Running Orginazation. 10: RAIL VIKAS NIGAM LIMITED
+https://www.ireps.gov.in/epsn/anonymSearch.do link is Accessible 
+Current Mobile NO.  7059141480
+The OTP for today is: 194504
+Predicted text: 5afdb
+Attempt 1 failed - Exception: Alert Text: you have entered wrong verification code.
+Message: unexpected alert open: {Alert text : you have entered wrong verification code.}
+  (Session info: chrome=140.0.7339.128)
+Stacktrace:
+	GetHandleVerifier [0x0x3ad2a3+66419]
+	GetHandleVerifier [0x0x3ad2e4+66484]
+	(No symbol) [0x0x184bd3]
+	(No symbol) [0x0x2131e9]
+	(No symbol) [0x0x1f0e16]
+	(No symbol) [0x0x1c25ce]
+	(No symbol) [0x0x1c34a4]
+	GetHandleVerifier [0x0x5f5ee3+2461619]
+	GetHandleVerifier [0x0x5f0f66+2441270]
+	GetHandleVerifier [0x0x3d6242+234258]
+	GetHandleVerifier [0x0x3c6208+168664]
+	GetHandleVerifier [0x0x3cd1ad+197245]
+	GetHandleVerifier [0x0x3b55f8+100040]
+	GetHandleVerifier [0x0x3b5792+100450]
+	GetHandleVerifier [0x0x39f74a+10266]
+	BaseThreadInitThunk [0x0x75ed5d49+25]
+	RtlInitializeExceptionChain [0x0x774cd6db+107]
+	RtlGetAppContainerNamedObjectPath [0x0x774cd661+561]
+	(No symbol) [0x0]
+
+Predicted text: 6xppb
+
+--------- ZONE LIST ---------
+RVNL
+
+Scraping ZONE -> RVNL
+----------------
+
+Tender search results  4
+Pages =  1
+Tender  : 1   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/79674099/viewNitPdf_4840488.pdf
+Download successful
+Department: PIU-KOLKATA-2-CIVIL/RVNL
+Tender No: RVNL_KOL_Metro_Joka-IIM
+Name of Work: Construction of Metro Railway Viaduct from Ch. (-) 495.769m to Ch. (-) 2046.594m = 1370.825 m (excluding IIM Station) in between Joka Metro Station to IIM Metro Station and one elevated Metro Station (IIM Station) in connection with Joka- Diamond Park (Phase-I) of Metro Railway Project in Kolkata, West Bengal, India.
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 07/10/2025 15:00
+Date and Time of Uploading Tender: 26/07/2025 16:55
+Pre-Bid Conference Date and Time: 20/08/2025 11:30
+Advertised Value: 3778201812.74
+Earnest Money: 20000000.00
+Contract Type: Works - General
+Tender  : 2   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/84374370/viewNitPdf_5116317.pdf
+Download successful
+Department: PIU-AHEMDABAD-ELECTRICAL/RVNL
+Tender No: RVNL-ADI-RE-DOKTSS-2025-2
+Name of Work: Design supply, erection, testing Commissioning of supply arrangement of drawl of 10.14 MW power under LTOA for Dholka TSS from GETCO 220 kV Salejada (GETCO) substation along with erection 02 Nos of 220kV Feeder bays at 220kV Salejada (GETCO) and ABT meter under Bhavnagar division of Western railway Gujarat In
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 08/10/2025 12:00
+Date and Time of Uploading Tender: 16/09/2025 13:25
+Pre-Bid Conference Date and Time: 22/09/2025 12:00
+Advertised Value: 186156378.38
+Earnest Money: 3723200.00
+Contract Type: Works - General
+Tender  : 3   https://www.ireps.gov.in/ireps/works/pdfdocs/102025/84170946/viewNitPdf_5105415.pdf
+Download successful
+Department: PIU-KOLKATA-1-ELECTRICAL/RVNL
+Tender No: RVNL-KOL-EL-METRO-16A
+Name of Work: Design, Supply, Erection, Testing and Commissioning of ECS and TVS for 4 underground metro stations including tunnel in Joka-Esplanade Corridor of Metro Railway, Kolkata (West Bengal), India
+Bidding Type: Normal Tender
+Tender Type: Open
+Bidding System: Two Packet System
+Tender Closing Date and Time: 13/10/2025 11:00
+Date and Time of Uploading Tender: 06/09/2025 20:47
+Pre-Bid Conference Date and Time: 12/09/2025 14:30
+Advertised Value: 3058158664.51
+Earnest Money: 20000000.00
+Contract Type: Works - General
+Tender  : 4 
