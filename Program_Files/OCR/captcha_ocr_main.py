@@ -44,7 +44,7 @@ import cv2
 # ──────────────────────────────────────────────────────────────────────
 IMG_H       = 44          # patch height  (matches ~46px image height)
 IMG_W       = 32          # patch width   (matches ~33px column width)
-NUM_CHARS   = 6           # every CAPTCHA has exactly 6 characters
+NUM_CHARS   = 5           # every CAPTCHA has exactly 6 characters
 EPOCHS      = 50
 BATCH_SIZE  = 32
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

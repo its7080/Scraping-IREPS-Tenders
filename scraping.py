@@ -1,1132 +1,1463 @@
 """
-||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-Author  : Anupam Manna
-Email   : am7059141480@gmail.com
-Mobile  : +91 7059141480
-Updated : 2025
-Description: State tenders automation.
-  • Playwright (sync API) replaces Selenium
-  • CAPTCHA solved via option_detect() from captcha_ocr_main.py
-  • PyInstaller + Windows Task Scheduler compatible
-  • Paths always resolved relative to the executable (sys.executable),
-    so the .exe works correctly from any working directory
-  • All stdout/stderr flushed immediately (for Task Scheduler log capture)
-  • Exit code 0 = success, 1 = fatal error  (Task Scheduler reads this)
-  • All output xlsx files saved in PROGRAM_FILES_DIR
-  • Merged master file attached to the report email
-  • 4-thread pool (ThreadPoolExecutor) — always exactly 4 Chromium
-    instances running; CNN inference serialised via lock so TensorFlow
-    is never called from two threads simultaneously
-  • All tuneable constants exposed as module-level variables so the
-    GUI settings panel can update them live without restarting
-||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||     
+Author: Anupam Manna
+Email ID: am7059141480@gmail.com
+Mobile No: +91 7059141480
+Date: October 2, 2023
+Description: IREPS tenders automation.
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||       
 """
 
-# =======================
-# FROZEN-EXE BOOTSTRAP
-# Must be the very first executable lines — before any other import —
-# so that PyInstaller's multiprocessing support initialises correctly
-# on Windows when the .exe is launched by Task Scheduler.
-# =======================
-import multiprocessing
-multiprocessing.freeze_support()
-
-import base64
-import concurrent.futures
-import datetime
 import json
-import logging
 import os
-import re
-import shutil
-import smtplib
-import socket
-import sys
-import threading
-import time
-import platform
-
-import numpy as np
 import pandas as pd
-import xlsxwriter
-
-from PIL import Image
-from io import BytesIO
-
-from email import encoders
-from email.mime.base import MIMEBase
+import subprocess
+import sys
+import re
+# from openpyxl import load_workbook
+import time
+# import tempfile
+# import shutil
+# import logging
+import datetime
+import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+# from email.mime.application import MIMEApplication
+from selenium import webdriver
+import chromedriver_autoinstaller
+from selenium.webdriver.chrome.options import Options
+# import shutil
+# import urllib.request
+from selenium.webdriver.common.alert import Alert
+from selenium.webdriver.common.by import By
+# from selenium.webdriver.support.ui import WebDriverWait
+# from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+from dateutil.relativedelta import relativedelta
+from bs4 import BeautifulSoup
+from selenium.common.exceptions import NoSuchElementException
+# from urllib.parse import urlparse
+import requests
+from selenium.common.exceptions import NoAlertPresentException
+from selenium.webdriver.support.ui import Select
+import xlsxwriter
+import math
+import pdfplumber
+import platform
+import socket
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+# from chrome_updater import ChromeUpdater
+from Program_Files.scraping_library import check_internet_connection
+# from Program_Files.scraping_library import get_folder_size_in_mb
+# from Program_Files.scraping_library import delete_empty_folders
+from Program_Files.scraping_library import delete_folder
+from Program_Files.scraping_library import packaging
+from Program_Files.scraping_library import create_folder_if_not_exists
+from Program_Files.scraping_library import is_android_device_connected
+# from Program_Files.scraping_library import send_email
+from Program_Files.scraping_library import countdown_timer
+from Program_Files.scraping_library import delete_xlsx_files
+from Program_Files.scraping_library import no_adb_mail
+from Program_Files.scraping_library import skip_zones
+from Program_Files.scraping_library import get_current_device_serial
+from Program_Files.captcha_solver import predict_captcha
 
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+import base64
+import io
+from PIL import Image
+# # =======================
+# # chrome_updater
+# # =======================
+# # Create an instance of ChromeUpdater
+# updater = ChromeUpdater()
 
-# =======================
-# BASE DIRECTORY
-# =======================
-if getattr(sys, "frozen", False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# # Step 1: Open Chrome with Selenium
+# driver = updater.relaunch_chrome_with_selenium()
 
+# # Step 2: Close Chrome to prepare for the update
+# time.sleep(5)  # Simulate some activity
+# updater.close_chrome(driver)
 
-# =======================
-# OCR LOCATION (migrated under Program_Files/OCR)
-# =======================
-PROGRAM_FILES_DIR = os.path.join(BASE_DIR, "Program_Files")
-PROGRAM_FILES_OCR_DIR = os.path.join(PROGRAM_FILES_DIR, "OCR")
-LEGACY_OCR_DIR = os.path.join(BASE_DIR, "OCR")
+# # Step 3: Download and install the latest version of Chrome
+# updater.download_chrome_installer()
+# updater.install_chrome()
 
-if (not os.path.exists(PROGRAM_FILES_OCR_DIR)) and os.path.exists(LEGACY_OCR_DIR):
-    shutil.copytree(LEGACY_OCR_DIR, PROGRAM_FILES_OCR_DIR, dirs_exist_ok=True)
-
-if PROGRAM_FILES_OCR_DIR not in sys.path:
-    sys.path.insert(0, PROGRAM_FILES_OCR_DIR)
-
-try:
-    # Single entry-point from captcha_ocr_main.py (preferred location)
-    from captcha_ocr_main import option_detect
-except ImportError:
-    # Backward-compatible fallback when OCR remains at legacy root folder
-    from OCR.captcha_ocr_main import option_detect
-
-from Program_Files.scraping_library import (
-    delete_folder,
-    packaging,
-    create_folder_if_not_exists,
-    delete_xlsx_files,
-)
-
-
-# =======================
-# PATHS
-# =======================
-PROGRAM_FILES_DIR = os.path.join(BASE_DIR, "Program_Files")
-DATA_FILES_DIR    = os.path.join(BASE_DIR, "Data_Files")
-
-TEMP_DIR   = os.path.join(PROGRAM_FILES_DIR, "temp_dir")
-OUTPUT_DIR = os.path.join(PROGRAM_FILES_DIR, "Output")
-LOG_DIR    = os.path.join(PROGRAM_FILES_DIR, "#log")
-CAP_DIR    = os.path.join(PROGRAM_FILES_DIR, "CAP")
-
-for _d in (TEMP_DIR, OUTPUT_DIR, LOG_DIR, CAP_DIR):
-    os.makedirs(_d, exist_ok=True)
-
-CONFIG_FILE   = os.path.join(PROGRAM_FILES_DIR, "Configration.json")
-CRITERIA_FILE = os.path.join(PROGRAM_FILES_DIR, "search_criteria.json")
-ORG_FILE      = os.path.join(PROGRAM_FILES_DIR, "Organization_list.txt")
-
-
-# =======================
-# LOGGING
-# =======================
-_LOG_FILENAME = os.path.join(
-    LOG_DIR,
-    f"State-tenders_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log",
-)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  [%(threadName)s]  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(_LOG_FILENAME, encoding="utf-8"),
-    ],
-    force=True,
-)
-log = logging.getLogger(__name__)
-
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(line_buffering=True)
+# # Step 4: Relaunch Chrome after the update
+# driver = updater.relaunch_chrome_with_selenium()
 
 
-# =======================
-# CONFIG  — single source of truth: Configration.json
-# Every tuneable constant is read from here.  The GUI writes all changes
-# back to this file via save_config(), so settings persist across restarts.
-# =======================
-def load_config() -> dict:
-    """Load Configration.json and return the dict."""
-    with open(CONFIG_FILE, "r", encoding="utf-8") as _f:
-        return json.load(_f)
 
 
-def save_config(cfg: dict):
-    """Write cfg back to Configration.json atomically."""
-    with open(CONFIG_FILE, "w", encoding="utf-8") as _f:
-        json.dump(cfg, _f, indent=4)
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>># Global Variables
+# Determine script directory
+script_path = os.path.abspath(sys.argv[0])  # Absolute path of the executable
+script_dir_path = os.path.dirname(script_path)
+
+# Define directories and file paths relative to the script directory
+# input_files_dir = os.path.join(script_dir_path, "Input_Files")
+output_files_dir = os.path.join(script_dir_path, "Output_Files")
+program_files_dir = os.path.join(script_dir_path, "Program_Files")
 
 
-# =======================
-# SEARCH CRITERIA  — stored in search_criteria.json
-#
-# Full portal form field reference (from eprocure HTML):
-#   TenderType       : 0=Select, 1=Open Tender, 2=Limited Tender
-#   OrganisationName : 0=Select, 1-240=specific orgs (0 = all)
-#   Department       : 0=Select  (dynamic, depends on org)
-#   Division         : 0=Select  (dynamic)
-#   SubDivision      : 0=Select  (dynamic)
-#   tenderCategory   : 0=Select, 1=Goods, 2=Services, 3=Works
-#   ProductCategory  : 0=Select, 1-82=specific categories
-#   formContract     : 0=Select, 1=Buy … 19=Works
-#   PaymentMode      : 0=Select, 1=Offline, 2=Online, 3=Both, 4=Not Applicable
-#   valueCriteria    : 0=Select, 1=EMD, 2=Tender Fee, 3=Processing Fee, 4=ECV
-#   valueParameter   : 0=Select, 1=Equal, 2=LessThan, 3=GreaterThan, 4=Between
-#   FromValue        : numeric amount
-#   ToValue          : numeric (only used when valueParameter=4=Between)
-#   dateCriteria     : 0=Select, 1=Published, 2=DocDownloadStart, 3=DocDownloadEnd,
-#                      4=BidSubmitStart, 5=BidSubmitEnd
-#   fromDate         : dd/MM/yyyy string  (leave "" to skip)
-#   toDate           : dd/MM/yyyy string  (leave "" to skip)
-#   pinCode          : string (leave "" to skip)
-#   workItemTitle    : string (leave "" to skip)
-#   tenderId         : string (leave "" to skip)
-#   tenderRefNo      : string (leave "" to skip)
-#   twoStageAllowed  : bool checkbox
-#   ndaAllowed       : bool checkbox
-#   prefBidAllowed   : bool checkbox
-#   chkGteAllowed    : bool checkbox
-#   chkIteAllowed    : bool checkbox
-#   chkTfeAllowed    : bool checkbox
-#   chkEfeAllowed    : bool checkbox
-#
-# NOTE: valueParameter mapping confirmed from portal HTML source:
-#   1 = Equal   |   2 = LessThan   |   3 = GreaterThan   |   4 = Between
-# =======================
-DEFAULT_CRITERIA = [
-    {
-        "label":           "Pass 1 — Open Tender, ECV GreaterThan 0",
-        "enabled":         True,
-        # Tender type
-        "tender_type":     1,        # 1 = Open Tender
-        # Organisation / department (0 = all)
-        "organisation":    0,
-        "department":      0,
-        "division":        0,
-        "sub_division":    0,
-        # Category filters (0 = all)
-        "tender_category": 0,
-        "product_category": 0,
-        "form_contract":   0,
-        "payment_mode":    0,
-        # Value filter
-        "value_criteria":  4,        # 4 = ECV
-        "value_param":     3,        # 3 = GreaterThan  ← corrected from portal HTML
-        "from_value":      0,
-        "to_value":        0,        # only used when value_param=4 (Between)
-        # Date filter (empty = skip)
-        "date_criteria":   0,
-        "from_date":       "",
-        "to_date":         "",
-        # Free-text filters (empty = skip)
-        "pin_code":        "",
-        "work_item_title": "",
-        "tender_id":       "",
-        "tender_ref_no":   "",
-        # Checkboxes
-        "two_stage":       False,
-        "nda":             False,
-        "pref_bid":        False,
-        "gte":             False,
-        "ite":             False,
-        "tfe":             False,
-        "efe":             False,
-    },
-    {
-        "label":           "Pass 2 — Open Tender, ECV Equal 99999999",
-        "enabled":         True,
-        "tender_type":     1,
-        "organisation":    0,
-        "department":      0,
-        "division":        0,
-        "sub_division":    0,
-        "tender_category": 0,
-        "product_category": 0,
-        "form_contract":   0,
-        "payment_mode":    0,
-        "value_criteria":  4,        # 4 = ECV
-        "value_param":     1,        # 1 = Equal  ← corrected from portal HTML
-        "from_value":      99_999_999,
-        "to_value":        0,
-        "date_criteria":   0,
-        "from_date":       "",
-        "to_date":         "",
-        "pin_code":        "",
-        "work_item_title": "",
-        "tender_id":       "",
-        "tender_ref_no":   "",
-        "two_stage":       False,
-        "nda":             False,
-        "pref_bid":        False,
-        "gte":             False,
-        "ite":             False,
-        "tfe":             False,
-        "efe":             False,
-    },
-]
+# Join the script path with the source path
+temp_dir_path = os.path.join(program_files_dir, "ireps_temp")
+# print(temp_dir_path)
+
+# email_file_path = os.path.join(input_files_dir, "emailid_list.txt")
+# print(email_file_path)
+# sheet_names_file_path = os.path.join(input_files_dir,"sheet_names.txt")
+# print(sheet_names_file_path)
+script_log_file_path = os.path.join(program_files_dir, "script_log.log" )
+# print(script_log_file_path)
+config_file_path = os.path.join(program_files_dir, "Configration.json")
+# print(config_file_path)
+org_file_path = os.path.join(program_files_dir, "Organization_list.txt")
+# print(org_file_path)
+ireps_data = os.path.join(program_files_dir, "ireps_data.pkl")
+# print(ireps_data)
+# file_to_save_path = os.path.join(input_files_dir, "send_mail_log.txt")
+# print(file_to_save_path)
+tender_pdf_file_path = os.path.join(temp_dir_path, "tender.pdf")
+# print(tender_pdf_file_path)
 
 
-def load_criteria() -> list[dict]:
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>># Global Variables
+
+# List to store the organization
+organizations = []
+
+# Read data from the text file
+with open(org_file_path, 'r') as file:
+    lines = file.readlines()
+
+for line in lines:
+    # Check if the line starts with '#' and ignore those lines
+    if not line.startswith('#'):
+        parts = line.strip().split(': ')
+        if len(parts) == 2:
+            number = parts[0]
+            name = parts[1]
+            organizations.append((number, name))
+
+
+
+
+# Load the JSON data from the file
+with open(config_file_path, 'r') as file:
+    data = json.load(file)
+# Extract values from the JSON data
+browser = data['browser']
+adb_value = data['adb_device']
+captcha_manual_input = data["captcha_manual_input"]
+adb_device_ip = data['adb_device_ip']
+mobile_no = data.get('mobile_no')
+dump_location = data.get('dump_location')
+excel_file_path = data.get('excel_file_path')
+# otp_file_location = data['otp_file_location']
+notification_emailids = data['notification_emailids']
+receiver_emailids = data['receiver_emailids']
+# print(notification_emailids)
+# time.sleep(1000)
+
+
+# Edit the value of "signal_ireps"
+data["signal_ireps"] = "FALSE"
+data["signal_datelog"] = "FALSE"
+# Write the modified data back to the file
+with open(config_file_path, 'w') as file:
+    json.dump(data, file, indent=4) 
+
+#----------------------------------------------------------------------------------------------- Extension to global variable
+
+
+
+
+
+
+# Load dump location from JSON file
+def load_otp():
+    try:
+        with open(config_file_path, "r") as file:
+            data = json.load(file)
+            return data.get("otp")
+    except FileNotFoundError:
+        return None
+    
+
+
+
+
+# Load dump location from JSON file
+def load_otp_date():
+    try:
+        with open(config_file_path, "r") as file:
+            data = json.load(file)
+            return data.get("otp_date")
+    except FileNotFoundError:
+        return None
+    
+
+
+
+
+
+def is_otp_valid():
+    # Get the current date
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    otp_date = load_otp_date()
+    otp = load_otp()
+    # Check if the dates match
+    if current_date == otp_date: # date
+        print(f"The OTP for today is: {otp}")
+        return True
+    else:
+        print("No atching OTP found for today's date.")
+        return False
+    
+
+
+
+def is_under_maintenance(driver, url):
+    # Check if the page contains the specified text
+    if "Module under maintenance" in driver.page_source:
+        print(f"{url}  -  Module under maintenance")
+    else:
+        print(f"{url} link is Accessible ")
+    return driver
+
+
+
+
+# def get_verification(driver):
+#     if captcha_manual_input == 1:
+
+#          # blue #3BB9FF & red #640A0A
+#     # Find all img elements inside the span with id "verimage" using XPath
+#     img_tags = driver.find_elements(By.XPATH, "//span[@id='verimage']//img")
+
+#     # Iterate through the img elements
+#     for img_tag in img_tags:
+#         src = img_tag.get_attribute("src")
+#         if "Captcha.jpg?r=" in src:
+#             captcha_chars = src.split('Captcha.jpg?r=')[1][:6]
+#             # print("Image Source:", src)
+#             print("verification Code: ", captcha_chars)
+#     return driver, captcha_chars
+
+
+def get_verification(driver):
+    captcha_chars = None
+
+    if captcha_manual_input == 1:
+        # Locate the captcha <img>
+        img_element = driver.find_element(By.ID, "imgCaptcha")
+        src = img_element.get_attribute("src")
+
+        if src.startswith("data:image"):
+            # Base64 decode
+            img_data = src.split(",")[1]
+            image = Image.open(io.BytesIO(base64.b64decode(img_data)))
+            image.show()  # Opens the image in default viewer
+
+        # Ask user input
+        captcha_chars = input("Enter CAPTCHA from the image: ").strip()
+
+    else:
+        # Step 1: Get captcha image element
+        img_element = driver.find_element(By.ID, "imgCaptcha")
+        src = img_element.get_attribute("src")
+
+        # Save captcha image to temp.png
+        if src.startswith("data:image"):  # If base64 encoded
+            header, encoded = src.split(",", 1)
+            data = base64.b64decode(encoded)
+            with open("temp.png", "wb") as f:
+                f.write(data)
+        else:  # If src is a URL
+            response = requests.get(src)
+            with open("temp.png", "wb") as f:
+                f.write(response.content)
+
+        # Step 2: Run prediction
+        test_image = "temp.png"
+        predicted_text = predict_captcha(os.path.join(program_files_dir, "captcha_model.pth"), test_image)
+        print(f"Predicted text: {predicted_text}")
+
+        # Step 3: Remove temp.png
+        if os.path.exists("temp.png"):
+            os.remove("temp.png")
+
+        captcha_chars = predicted_text.strip()
+
+
+    return driver, captcha_chars
+
+
+
+
+
+def login(driver, mobile_no):
     """
-    Load search_criteria.json.  If the file does not exist yet, create it
-    with DEFAULT_CRITERIA and return those defaults.
-    """
-    if not os.path.exists(CRITERIA_FILE):
-        save_criteria(DEFAULT_CRITERIA)
-        return [dict(c) for c in DEFAULT_CRITERIA]
-    with open(CRITERIA_FILE, "r", encoding="utf-8") as _f:
-        data = json.load(_f)
-    # Ensure every criterion has all required keys (forward-compat)
-    result = []
-    for c in data:
-        row = dict(DEFAULT_CRITERIA[0])   # defaults for any missing key
-        row.update(c)
-        result.append(row)
-    return result
-
-
-def save_criteria(criteria: list[dict]):
-    """Write criteria list to search_criteria.json."""
-    with open(CRITERIA_FILE, "w", encoding="utf-8") as _f:
-        json.dump(criteria, _f, indent=4)
-
-
-# Module-level criteria list — patched live by the GUI after save
-search_criteria: list[dict] = load_criteria()
-
-
-def _apply_config(cfg: dict):
-    """
-    Push every key from cfg into the matching module-level global.
-    Called once at startup and again after every GUI save so that
-    all engine code picks up the new values immediately.
-    Search criteria are NOT stored here — they live in search_criteria.json
-    and are managed via load_criteria() / save_criteria().
-    """
-    global BROWSER_HEADLESS, DUMP_LOCATION
-    global SENDER_EMAIL, SENDER_PASS, NOTIFY_EMAILS
-    global SMTP_SERVER, SMTP_PORT, EMAIL_SUBJECT, ATTACH_LOG
-    global MERGED_FILE_PREFIX, DELETE_INDIVIDUAL_AFTER_MERGE, LOG_RETENTION_DAYS
-    global MAX_WORKERS, CAPTCHA_ATTEMPTS, PAGE_TIMEOUT_SEC
-    global NAV_RETRIES, PAGE_LOAD_WAIT_SEC
-    global OUTPUT_DIR
-
-    BROWSER_HEADLESS = cfg.get("browser", "0") == "0"
-    DUMP_LOCATION    = cfg.get("dump_location", DATA_FILES_DIR)
-
-    # Credentials: env vars first, JSON fallback
-    SENDER_EMAIL  = os.environ.get("TENDER_SENDER_EMAIL") or cfg.get("sender_email_id", "")
-    SENDER_PASS   = os.environ.get("TENDER_SENDER_PASS")  or cfg.get("sender_email_password", "")
-    NOTIFY_EMAILS = cfg.get("notification_emailids", [])
-
-    # SMTP / email
-    SMTP_SERVER   = cfg.get("smtp_server",        "smtp.office365.com")
-    SMTP_PORT     = int(cfg.get("smtp_port",      587))
-    EMAIL_SUBJECT = cfg.get("email_subject",      "State Tender Scraping Report")
-    ATTACH_LOG    = bool(cfg.get("attach_log_to_email", True))
-
-    # Output / file management
-    MERGED_FILE_PREFIX           = cfg.get("merged_file_prefix",           "merged_State")
-    DELETE_INDIVIDUAL_AFTER_MERGE = bool(cfg.get("delete_individual_after_merge", False))
-    LOG_RETENTION_DAYS           = int(cfg.get("log_retention_days",       30))
-
-    # Custom output dir (optional — falls back to PROGRAM_FILES_DIR/Output)
-    _custom_out = cfg.get("output_dir", "")
-    if _custom_out:
-        OUTPUT_DIR = _custom_out
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    # Scraping behaviour
-    MAX_WORKERS        = int(cfg.get("max_workers",        4))
-    CAPTCHA_ATTEMPTS   = int(cfg.get("captcha_attempts",   5))
-    PAGE_TIMEOUT_SEC   = int(cfg.get("page_timeout_sec",   240))
-    NAV_RETRIES        = int(cfg.get("nav_retries",        3))
-    PAGE_LOAD_WAIT_SEC = int(cfg.get("page_load_wait_sec", 5))
-
-
-# Declare globals first so _apply_config can assign them
-BROWSER_HEADLESS              = True
-DUMP_LOCATION                 = ""
-SENDER_EMAIL                  = ""
-SENDER_PASS                   = ""
-NOTIFY_EMAILS: list           = []
-SMTP_SERVER                   = "smtp.office365.com"
-SMTP_PORT                     = 587
-EMAIL_SUBJECT                 = "State Tender Scraping Report"
-ATTACH_LOG                    = True
-MERGED_FILE_PREFIX            = "merged_State"
-DELETE_INDIVIDUAL_AFTER_MERGE = False
-LOG_RETENTION_DAYS            = 30
-MAX_WORKERS                   = 4
-CAPTCHA_ATTEMPTS              = 5
-PAGE_TIMEOUT_SEC              = 240
-NAV_RETRIES                   = 3
-PAGE_LOAD_WAIT_SEC            = 5
-
-# Load and apply on startup
-_apply_config(load_config())
-
-
-# =======================
-# ORGANISATIONS
-# =======================
-organizations: list[tuple[str, str]] = []
-
-with open(ORG_FILE, "r", encoding="utf-8") as _f:
-    for _line in _f:
-        _line = _line.strip()
-        if not _line or _line.startswith("#"):
-            continue
-        _parts = _line.split(": ", 1)
-        if len(_parts) == 2:
-            organizations.append((_parts[0], _parts[1]))
-
-
-# =======================
-# SHARED STATE
-# =======================
-_error_lock   = threading.Lock()
-error_data:   dict = {}
-_captcha_lock = threading.Lock()
-
-
-
-
-
-def save_png_copy(cap_path: str, result: str, folder_path: str = "Program_Files/OCR/detected_sample_data_png_state") -> str:
-    """
-    Copy a PNG file to a target folder with a new name based on OCR result.
-
+    Log in to a website using the provided WebDriver instance and mobile number.
+    
     Args:
-        cap_path (str): Source PNG file path
-        result (str): OCR result (used as filename)
-        folder_path (str): Destination folder (default: OCR/detected_sample_data_png_state)
+        driver (WebDriver): Selenium WebDriver instance for browser.
+        mobile_no (str): Mobile number for login.
+    
+    Returns:
+        WebDriver: Updated WebDriver instance after login, or None if login fails.
+    """
+
+    # Attempt to refresh the page up to 3 times if a timeout occurs
+    for _ in range(3):
+        try:
+            driver.refresh()
+            break
+        except TimeoutException:
+            print("Timeout occurred. Retrying refresh...")
+            time.sleep(2)
+    else:
+        raise TimeoutException("Exceeded maximum retries. Unable to refresh.")
+
+    time.sleep(3)  # Short delay before starting login
+
+    # Attempt the login process up to 3 times
+    for attempt in range(100):
+        try:
+            # Accept alert if present, then proceed
+            Alert(driver).accept()
+        except:
+            pass  # Ignore if no alert
+
+        # Get verification code and OTP, and fill in login details
+        driver, ver_code = get_verification(driver)
+        if ver_code is None:
+            return None  # Return None if verification retrieval fails
+
+        otp = load_otp()
+        driver.execute_script(f"document.getElementById('mobileNo').value='{mobile_no}'")
+        driver.execute_script(f"document.getElementById('verification').value='{ver_code}'")
+        driver.execute_script(f"document.getElementById('otp').value='{otp}'")
+
+        # Click the "Proceed" button and wait for the "custumSearchId" element
+        time.sleep(2)
+        driver.find_element("xpath", "//input[@value='Proceed']").click()
+
+        try:
+            driver.find_element(By.ID, "custumSearchId").click()
+            return driver  # Return driver if login succeeds
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed - Exception: {e}")
+            driver.get("https://www.ireps.gov.in/epsn/anonymSearch.do")
+            time.sleep(5)
+
+    return driver  # Return driver if all login attempts fail
+
+
+# def login(driver, mobile_no):
+
+#     retries = 0
+#     while retries < 3:
+#         try:
+#             driver.refresh()
+#             # If the refresh succeeds, break out of the loop
+#             break
+#         except TimeoutException:
+#             print("Timeout exception occurred. Retrying...")
+#             retries += 1
+#             # Add some delay before retrying to avoid overwhelming the server
+#             time.sleep(2)
+#     else:
+#         # If all retries fail, raise the TimeoutException
+#         raise TimeoutException("Exceeded maximum retries. Unable to refresh.")
+
+#     time.sleep(3)
+
+#     # Retry login process up to 3 times
+#     for attempt in range(3):
+#         try:
+
+#             try:
+#                 alert = Alert(driver)
+#                 alert.accept()
+#             except:
+#                 pass
+
+#             driver, ver_code = get_verification(driver)
+
+#             if ver_code is None:
+#                 return None
+
+#             otp = load_otp()
+#             # Fill in login details and proceed
+#             driver.execute_script("document.getElementById('mobileNo').value='" + mobile_no + "'")
+#             time.sleep(1)
+#             driver.execute_script("document.getElementById('verification').value='" + ver_code + "'")
+#             time.sleep(1)
+#             driver.execute_script("document.getElementById('otp').value='" + otp + "'")
+#             time.sleep(2)
+#             driver.find_element("xpath", "//input[@value='Proceed']").click()
+
+#             # WebDriverWait block to wait for the presence of the element with ID "customSearchId"
+#             driver.find_element(By.ID, "custumSearchId").click()
+#             # If everything is successful, break out of the loop
+#             return driver
+
+#         except Exception as e:
+#             # Handle other exceptions while clicking 'Custom Search' button
+#             print(f"Attempt {attempt + 1} login or Custom Search button  -  Exception") # {e}")
+#             driver.get("https://www.ireps.gov.in/epsn/anonymSearch.do")
+#             time.sleep(5)
+
+#     return driver
+
+
+
+def is_no_result_found_present_in_page(driver):
+    """
+    Check if the page contains the "No Results Found" message.
+    
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance for interacting with the page.
 
     Returns:
-        str: Full path of saved file
+        tuple: (bool, driver) where the boolean is True if "No Results Found" is present, False otherwise.
     """
-
-    # Ensure folder exists
-    os.makedirs(folder_path, exist_ok=True)
-
-    # Clean filename
-    file_name = str(result).strip()
-    file_name = re.sub(r'[\\/*?:"<>|]', "", file_name)
-
-    # Fallback if filename becomes empty
-    if not file_name:
-        file_name = "unknown"
-
-    # Destination path
-    dest_path = os.path.join(folder_path, f"{file_name}.png")
-
     try:
-        # Copy file (preserve metadata)
-        shutil.copy2(cap_path, dest_path)
+        # Get the page source using Selenium
+        page_source = driver.page_source
 
-        return dest_path
+        # Parse the HTML content with BeautifulSoup
+        soup = BeautifulSoup(page_source, 'html.parser')
 
-    except Exception as e:
-        raise RuntimeError(f"Error saving PNG: {e}")
+        # Find the element containing the specific class and style attributes
+        result_element = soup.find('td', {'class': 'formLabel', 'style': 'color: #C00000'})
+
+        # Check if the element contains the text "No Results Found"
+        if result_element and "No Results Found" in result_element.get_text(strip=True):
+            print("No Results Found in the page.\n")
+            return True, driver
+
+        return False, driver
     
-# =======================
-# CAPTCHA HELPER
-# =======================
-def solve_captcha(img_b64: str, name: str) -> str | None:
-    img_b64 = (
-        img_b64
-        .replace("\\n", "")
-        .replace("\\r", "")
-        .replace("%0A", "")
-    )
-
-    cap_path = os.path.join(CAP_DIR, f"{name}.png")
-
-    try:
-        image_data = base64.b64decode(img_b64)
-        img = Image.open(BytesIO(image_data))
-        if img.mode in ("RGBA", "LA"):
-            background = Image.new("RGB", img.size, (255, 255, 255))
-            background.paste(img, mask=img.split()[-1])
-            img = background
-        else:
-            img = img.convert("RGB")
-        img.save(cap_path, "PNG")
-    except Exception as exc:
-        log.error("[%s] Failed to save CAPTCHA image: %s", name, exc)
-        return None
-
-    try:
-        with _captcha_lock:
-            result = option_detect(image_path=cap_path)
-        log.info("[%s] CAPTCHA raw result: %s", name, result)
-    except Exception as exc:
-        log.error("[%s] option_detect raised: %s", name, exc)
-        return None
-
-    if result and re.match(r"^[A-Za-z0-9]{6}$", str(result).strip()):
-        saved_path = save_png_copy(cap_path, result)
-        return str(result).strip()
+    except NoSuchElementException as e:
+        print(f"An error occurred while checking the page: {e}")
+        return False, driver
 
 
-    log.warning("[%s] CAPTCHA prediction '%s' failed validation.", name, result)
-    return None
 
 
-# =======================
-# TENDER EXTRACTOR
-# =======================
-class Extr:
-    """
-    Scrapes one portal for tenders matching one search criterion dict.
-    The criterion carries all form fields defined in search_criteria.json.
-    Behaviour constants (timeouts, retries) are snapshotted from module
-    globals at construction time so the GUI can change them between runs.
-    """
 
-    def __init__(
-        self,
-        name: str,
-        url: str,
-        temp_dir: str,
-        criterion: dict,
-    ):
-        self.name      = name
-        self.url       = url
-        self.temp_dir  = temp_dir
-        self.criterion = criterion   # full criterion dict from search_criteria.json
-        # Snapshot module constants
-        self._max_captcha = CAPTCHA_ATTEMPTS
-        self._timeout_ms  = PAGE_TIMEOUT_SEC * 1000
-        self._nav_retries = NAV_RETRIES
-        self._wait_ms     = PAGE_LOAD_WAIT_SEC * 1000
 
-    def run(self) -> int:
-        no_scraped = 0
-        workbook   = None
+
+
+def download_pdf(url, retries=5):
+    for i in range(retries):
         try:
-            with sync_playwright() as pw:
-                browser = pw.chromium.launch(
-                    headless=BROWSER_HEADLESS,
-                    args=[
-                        "--disable-extensions",
-                        "--no-sandbox",
-                        "--disable-gpu",
-                        "--disable-application-cache",
-                        "--ignore-certificate-errors",
-                        "--disable-dev-shm-usage",
-                    ],
-                )
-                context = browser.new_context(ignore_https_errors=True)
-                page    = context.new_page()
-                page.set_default_timeout(self._timeout_ms)
-                try:
-                    no_scraped, workbook = self._scrape(page)
-                finally:
-                    context.close()
-                    browser.close()
-        except Exception as exc:
-            log.error("[%s] Playwright session failed: %s", self.name, exc)
-            if workbook is not None:
-                try:
-                    workbook.close()
-                except Exception:
-                    pass
-            with _error_lock:
-                error_data[self.name] = {
-                    "Status": "Not Successfully Run",
-                    "Total Tenders Scraped": no_scraped,
-                    "Error": str(exc),
-                }
-        return no_scraped
-
-    def _navigate(self, page) -> bool:
-        for attempt in range(1, self._nav_retries + 1):
-            try:
-                page.goto(self.url, wait_until="domcontentloaded",
-                          timeout=self._timeout_ms)
-                return True
-            except PlaywrightTimeout:
-                log.warning("[%s] Navigation timeout attempt %d/%d.",
-                            self.name, attempt, self._nav_retries)
-                time.sleep(2)
-        log.error("[%s] Navigation failed after %d attempts.",
-                  self.name, self._nav_retries)
+            response = requests.get(url, timeout=10)
+            with open(tender_pdf_file_path, 'wb') as output_file:
+                output_file.write(response.content)
+            print("Download successful")
+            return True
+        except Exception as e:
+            print(f"Attempt ({i+1}/{retries}) failed. Retrying... to Download")
+            time.sleep(0.5)  # wait for 1 second before retrying
+    else:
+        print("All Download attempts failed.")
         return False
 
-    def _get_captcha_b64(self, page) -> str | None:
-        el = page.query_selector("img#captchaImage")
-        if not el:
-            log.warning("[%s] captchaImage not found on page.", self.name)
-            return None
-        src = el.get_attribute("src") or ""
-        return src.split(",", 1)[-1] if "," in src else src
 
-    def _submit_form(self, page, captcha_text: str):
-        """
-        Populate every search form field from self.criterion then submit.
-        Fields not present in the criterion default to their 'all / none'
-        values so no accidental filter is applied.
-        """
-        c = self.criterion   # shorthand
 
-        def _js_set(field_id: str, value) -> str:
-            """Return a JS statement that sets a field value."""
-            safe = str(value).replace("'", "\\'")
-            return f"document.getElementById('{field_id}').value = '{safe}';"
 
-        def _js_check(field_id: str, checked: bool) -> str:
-            state = "true" if checked else "false"
-            return f"document.getElementById('{field_id}').checked = {state};"
+def getpdfdata():
 
-        js = "\n".join([
-            # CAPTCHA
-            _js_set("captchaText",       captcha_text),
-            # Tender type / org / department hierarchy
-            _js_set("TenderType",        c.get("tender_type",      1)),
-            _js_set("OrganisationName",  c.get("organisation",     0)),
-            _js_set("Department",        c.get("department",       0)),
-            _js_set("Division",          c.get("division",         0)),
-            _js_set("SubDivision",       c.get("sub_division",     0)),
-            # Category filters
-            _js_set("tenderCategory",    c.get("tender_category",  0)),
-            _js_set("ProductCategory",   c.get("product_category", 0)),
-            _js_set("formContract",      c.get("form_contract",    0)),
-            _js_set("PaymentMode",       c.get("payment_mode",     0)),
-            # Value filter
-            _js_set("valueCriteria",     c.get("value_criteria",   4)),
-            _js_set("valueParameter",    c.get("value_param",      3)),
-            _js_set("FromValue",         c.get("from_value",       0)),
-            _js_set("ToValue",           c.get("to_value",         0)),
-            # Date filter
-            _js_set("dateCriteria",      c.get("date_criteria",    0)),
-            _js_set("fromDate",          c.get("from_date",        "")),
-            _js_set("toDate",            c.get("to_date",          "")),
-            # Free-text filters
-            _js_set("pinCode",           c.get("pin_code",         "")),
-            _js_set("workItemTitle",     c.get("work_item_title",  "")),
-            _js_set("tenderId",          c.get("tender_id",        "")),
-            _js_set("tenderRefNo",       c.get("tender_ref_no",    "")),
-            # Checkboxes
-            _js_check("twoStageAllowed", c.get("two_stage",  False)),
-            _js_check("ndaAllowed",      c.get("nda",        False)),
-            _js_check("prefBidAllowed",  c.get("pref_bid",   False)),
-            _js_check("chkGteAllowed",   c.get("gte",        False)),
-            _js_check("chkIteAllowed",   c.get("ite",        False)),
-            _js_check("chkTfeAllowed",   c.get("tfe",        False)),
-            _js_check("chkEfeAllowed",   c.get("efe",        False)),
-        ])
+    # Extract PDF heading
+    with pdfplumber.open(tender_pdf_file_path) as pdf_heading:
+        first_page = pdf_heading.pages[0]
+        pdf_heading_text = first_page.extract_text()
+        # Extract the first line assuming it contains the main heading
+        dept_rly = pdf_heading_text.split('\n')[0].strip()
 
-        page.evaluate(f"() => {{ {js} }}")
-        page.click("#submit")
-        page.wait_for_load_state("domcontentloaded")
 
-    def _get_text(self, page, xpath: str, wait: bool = False) -> str | None:
+    # Extract table data
+    with pdfplumber.open(tender_pdf_file_path) as pdf:
+        table = pdf.pages[0].extract_tables()[0]
+        # Extracting table data
+        table = [[value for value in sublist if value is not None] for sublist in table]
+        new_table = [row[i*2:i*2+2] for row in table for i in range(len(row) // 2)] + [row for row in table if len(row) <= 2]
+        # print(new_table, type(new_table))
+        # time.sleep(3000)
+        # Replace '\n' with space in the entire table
+        # Replace '\n' with space in the entire table
+        new_table = [[cell.replace('\n', ' ') for cell in row] for row in new_table]
+        # print(nwe_table)
+        # time.sleep(3000)
+
+        extracted_info = {}
+        keys_to_extract = ['Name of Work', 'Bidding type', 'Tender Type', 'Bidding System', 'Tender Closing Date Time', 'Date Time Of Uploading Tender', 'Pre-Bid Conference Date Time', 'Advertised Value', 'Earnest Money (Rs.)', 'Contract Type']
+
+        for item in new_table:
+            if item[0] in keys_to_extract and len(item) > 1:
+                extracted_info[item[0]] = item[1]
+
+        # Extracting text data
+        with pdfplumber.open(tender_pdf_file_path) as pdf_text:
+            page_text = pdf_text.pages[0].extract_text()
+            tender_no_index = page_text.find("Tender No:")
+            if tender_no_index != -1:
+                tender_no_text = page_text[tender_no_index + len("Tender No:"):].strip()
+                tender_no = tender_no_text.split('\n')[0].strip() if '\n' in tender_no_text else tender_no_text
+                tender_no = tender_no[:-36]
+        # Extracted information
+        name_of_work = extracted_info.get('Name of Work', '')
+        bidding_type = extracted_info.get('Bidding type', '')
+        tender_type = extracted_info.get('Tender Type', '')
+        bidding_system = extracted_info.get('Bidding System', '')
+        tender_closing_date_time = extracted_info.get('Tender Closing Date Time', '')
+        date_time_of_uploading_tender = extracted_info.get('Date Time Of Uploading Tender', '')
+        pre_bid_conference_date_time = extracted_info.get('Pre-Bid Conference Date Time', '')
+        advertised_value = extracted_info.get('Advertised Value', '')
+        earnest_money = extracted_info.get('Earnest Money (Rs.)', '')
+        contract_type = extracted_info.get('Contract Type', '')
+
+        print("Department:", dept_rly)
+        print("Tender No:", tender_no)
+        print("Name of Work:", name_of_work)
+        print("Bidding Type:", bidding_type)
+        print("Tender Type:", tender_type)
+        print("Bidding System:", bidding_system)
+        print("Tender Closing Date and Time:", tender_closing_date_time)
+        print("Date and Time of Uploading Tender:", date_time_of_uploading_tender)
+        print("Pre-Bid Conference Date and Time:", pre_bid_conference_date_time)
+        print("Advertised Value:", advertised_value)
+        print("Earnest Money:", earnest_money)
+        print("Contract Type:", contract_type)
+        # print(new_table)
+        # time.sleep(3000)
+
+        return dept_rly, tender_no, name_of_work, bidding_type, tender_type, bidding_system, tender_closing_date_time, date_time_of_uploading_tender, pre_bid_conference_date_time, advertised_value, earnest_money, contract_type
+
+
+
+
+
+def tenders(driver, org_number, org_name, program_file_dir):
+    for _ in range(3):  # Try the action three times
         try:
-            if wait:
-                page.locator(f"xpath={xpath}").first.wait_for(
-                    state="attached", timeout=20_000)
-            el = page.query_selector(f"xpath={xpath}")
-            return el.inner_text().strip() if el else None
-        except Exception:
-            return None
+            # Locate the dropdown element using an appropriate selector
+            dropdown_element = driver.find_element(By.ID, "organization")
+            # Create a Select object and interact with the dropdown
+            select = Select(dropdown_element)
 
-    def _scrape(self, page) -> tuple[int, "xlsxwriter.Workbook | None"]:
-        links_count = 0
-        for attempt in range(1, self._max_captcha + 1):
-            log.info("[%s] CAPTCHA attempt %d/%d",
-                     self.name, attempt, self._max_captcha)
-            if not self._navigate(page):
-                return 0, None
-            page.wait_for_timeout(self._wait_ms)
-            page.reload()
-            page.wait_for_timeout(self._wait_ms)
+            # Select option by value
+            select.select_by_value(org_number)
 
-            img_b64 = self._get_captcha_b64(page)
-            if not img_b64:
-                continue
-            captcha_text = solve_captcha(img_b64, self.name)
-            if not captcha_text:
-                log.warning("[%s] CAPTCHA solve failed, retrying.", self.name)
-                continue
-            log.info("[%s] CAPTCHA solved: %s", self.name, captcha_text)
+            time.sleep(1)
+
+            # Double select organization
+            # Check if the element is still present
+            if dropdown_element:
+                driver.execute_script("document.getElementById('organization').value='"+ org_number +"'")
+            else:
+                print("Element with ID 'organization' not found")
+            
+            # If everything is successful, break out of the loop
+            break
+
+        except Exception as e:
+            # Handle other exceptions while clicking organization dropdown button
+            print(f"organization dropdown  -  Exception")
+            driver.refresh()
+            time.sleep(2)
+
+
+    """Stores all options in a dictionary. then print the zone list"""
+
+    time.sleep(1)
+    railway_zone_dropdown = Select(driver.find_element(By.XPATH, "//*[@id='railwayZone']"))
+    # print(railway_zone_dropdown)
+    options = railway_zone_dropdown.options
+    # print(options)
+
+    options_dict = {}
+    for option in options:
+        value = option.get_attribute("value")
+        text = option.get_attribute("innerText")
+        options_dict[value] = text
+
+    # Print the options dictionary
+    print("\n--------- ZONE LIST ---------")
+    for zone in options_dict.values():
+        if zone in skip_zones:
+            continue  # Skip the current iteration and move to the next one
+        print(zone)
+
+    """ End """
+
+
+    for zone_number, zone in options_dict.items():
+        last_tender = False
+        if zone in skip_zones: # this condition skip all zones inside skip_zones
+            continue  # Skip the current iteration and move to the next one
+        print(f"\nScraping ZONE -> {zone}")
+        print("----------------")
+
+
+        for _ in range(3):  # Try the action three times
             try:
-                self._submit_form(page, captcha_text)
-            except Exception as exc:
-                log.warning("[%s] Form submit error: %s", self.name, exc)
-                continue
-            if "No Tenders found." in page.content():
-                log.info("[%s] Portal returned no tenders.", self.name)
-                return 0, None
-            links = page.query_selector_all(
-                "xpath=//td/a[starts-with(@id,'DirectLink_0')]")
-            links_count = len(links)
-            if links_count > 0:
-                log.info("[%s] %d result links found.", self.name, links_count)
+                # filling search criteria
+                time.sleep(3)
+                driver.execute_script("document.getElementById('organization').value='"+ org_number +"'")
+                time.sleep(3)
+                driver.execute_script("document.getElementById('workArea').value='WT'") # works
+                time.sleep(3)
+                driver.execute_script("document.getElementById('railwayZone').value='"+ zone_number +"'")
+                time.sleep(3)
+                driver.execute_script("document.getElementById('tenderType').value=2") # open
+                time.sleep(3)
+                driver.execute_script("document.getElementById('tenderStage').value=1") # published
+                time.sleep(3)
+                driver.execute_script("document.getElementsByName('selectDate')[0].value = 'TENDER_OPENING_DATE'") # Tender Closing Date
+                # Get the current date
+                current_date = datetime.datetime.now()
+                # Add four months to the current date
+                four_months_later = current_date + relativedelta(months=4)
+                # Format the date as a string (optional)
+                formatted_date = four_months_later.strftime("%d/%m/%Y")
+                driver.execute_script("document.getElementById('ddmmyyDateformat2').value='" + formatted_date + "'")
+                time.sleep(0.5)
+                # driver.find_element(By.XPATH, "//input[@value='Show Results']").click()
+                xpath = "//input[@value='Show Results']"
+                element = driver.find_element(By.XPATH, xpath)
+                element.click()
+
+                # If everything is successful, break out of the loop
                 break
-            log.warning("[%s] No result links after submit.", self.name)
 
-        if links_count == 0:
-            log.error("[%s] No results after %d CAPTCHA attempts.",
-                      self.name, self._max_captcha)
-            return 0, None
+            except Exception as e:
+                # Handle other exceptions while clicking 'Custom Search' button
+                print(f"Show Results button  -  Exception")
+                driver.refresh()
+                time.sleep(2)
 
-        ts        = datetime.datetime.now().strftime("%d-%m-%Y %H_%M_%S")
-        file_path = os.path.join(self.temp_dir, f"{self.name}_Tenders_{ts}.xlsx")
-        workbook  = xlsxwriter.Workbook(file_path)
-        ws        = workbook.add_worksheet("ListOfTenders")
+        result, driver = is_no_result_found_present_in_page(driver)
 
-        for col, h in enumerate([
-            "Organisation Chain", "Tender Reference Number", "Tender ID",
-            "EMD Amount in Rs", "Title", "Work Description",
-            "Tender Value in Rs", "Pre Bid Meeting Date",
-            "Bid Submission End Date", "Published Date",
-            "Tender Type", "Tender Category", "Tender Fee",
-            "Location", "Period Of Work(Days)",
-            "Document Download / Sale End Date", "URL", "GET",
-        ]):
-            ws.write(0, col, h)
+        packages = packaging()
+        if result:
+            continue
 
-        no_scraped = 0
-        page_num   = 0
-        today_str  = datetime.datetime.now().date().strftime("%d/%m/%Y")
-        url_label  = f"{self.name}_Tenders"
-
-        def g(xpath, wait=False):
-            return self._get_text(page, xpath, wait=wait)
-
-        while True:
-            for j in range(1, links_count + 1):
-                if j in (7, 14, 20):
-                    page.wait_for_timeout(self._wait_ms)
-                    page.reload()
-                    page.wait_for_timeout(2_000)
-
-                elements = page.query_selector_all(
-                    "xpath=//a[starts-with(@id,'DirectLink_0')]")
-                if j > len(elements):
+        try:
+            tender_count = 0
+            time.sleep(3.5)
+            
+            # Get the page source and parse it with BeautifulSoup
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            
+            # Find all 'b' tags within 'tr' tags
+            b_tags = soup.find_all('b')
+            
+            # Iterate over the 'b' tags
+            for i in range(len(b_tags)):
+                # If the 'b' tag contains "Tender search results"
+                if "Tender search results" in b_tags[i].text:
+                    # If there is a next 'b' tag, print it
+                    if i + 1 < len(b_tags):
+                        tender_count = b_tags[i + 1].text
+                        if int(tender_count) < 1 :  # Check if tender_count exists but is None
+                            print("Unable to get tender search result, Variable is None and has no value assigned. ", tender_count)
+                            continue
+                        print("Tender search results ", tender_count)
                     break
+
+        except Exception as e:
+            print(f"An error occurred: Tender search results", e)
+            break
+
+        # # Get the page source and parse it with BeautifulSoup
+        # soup = BeautifulSoup(driver.page_source, 'html.parser')
+        # # Find all 'b' tags within 'tr' tags
+        # b_tags = soup.find_all('b')
+        # # Iterate over the 'b' tags
+        # for i in range(len(b_tags)):
+        #     # If the 'b' tag contains "Tender search results"
+        #     if "Tender search results" in b_tags[i].text:
+        #         # If there is a next 'b' tag, print it
+        #         if i+1 < len(b_tags):
+        #             tender_count = b_tags[i+1].text
+        #             print("Tender search results ", tender_count)
+        #         break
+
+
+        # Get the current date and time
+        current_date = datetime.datetime.now()
+        # Format the date and time string
+        fname = current_date.strftime("%d-%m-%Y %H_%M_%S")
+        # Create a file name using the value and the formatted date and time
+        file_name = f'{zone}_{fname}.xlsx'
+        # Create a file path for the new Excel workbook
+        file_path = os.path.join(program_files_dir, org_name, file_name)
+        # Create a new Excel workbook and a worksheet within it
+        workbook = xlsxwriter.Workbook(file_path)
+        worksheet1 = workbook.add_worksheet("ListOfTenders")
+        # Write the column headers in the worksheet
+        headers = ["Zone", "Dept.", "Tender No.", "Tender Title", "Type", "Due Date/Time", "Due Days", "Advertised Value", "Doc Link", "Bidding type", "Bidding System", "Date Time Of Uploading Tender", "Pre-Bid Conference Date Time", "Earnest Money (Rs.)", "Contract Type"]
+        for index, header in enumerate(headers):
+            worksheet1.write(0, index, header)
+
+
+        # Calculate the number of pages based on the tender count
+        tender_count = int(tender_count)
+        decimal_number = tender_count / 25
+        # Round up to the nearest integer to get the page count
+        page_count = math.ceil(decimal_number)
+        # Print the number of pages
+        print("Pages = ", page_count)
+
+
+        cnt = 1
+        k = 0
+        # Loop through all the pages
+        while cnt <= page_count:
+            time.sleep(3)
+            for _ in range(3):  # Try the action three times
                 try:
-                    elements[j - 1].click()
-                except Exception as exc:
-                    log.warning("[%s] Click error item %d: %s", self.name, j, exc)
+                    # If the element is found, you can perform further actions here
+                    a_tags = driver.find_elements(By.CSS_SELECTOR, "a[onclick]")      
+                    # If everything is successful, break out of the loop
+                    break
+                except Exception as e:
+                    # Handle other exceptions while clicking 'Custom Search' button
+                    print(f"a_tags tender link - Exception")
+                    time.sleep(2)
+                    continue
+
+            if not a_tags:
+                break
+
+            filtered_a_tags = [tag for tag in a_tags if 'postRequestNewWindow(\'/epsn/nitViewAnonyms/rfq/nitPublish.do?' in tag.get_attribute('onclick')]
+
+            # Get the initial window handle
+            initial_handle = driver.current_window_handle
+            for a_tag in filtered_a_tags:
+                k += 1
+                print('\r' + "Tender  : " + str(k) + " ", end='')
+
+                try:
+                    a_tag.click()
+                    # WebDriverWait(driver, 20).until(lambda x: x.execute_script('return document.readyState') == 'complete')
+                except Exception as e:
+                    print("Result page a_tags tender link click - Exception")
+                    driver.switch_to.window(initial_handle)
+                    time.sleep(2)
+                    continue
+            
+
+                handles = driver.window_handles
+                time.sleep(0.25)
+                driver.switch_to.window(handles[1])
+
+                # # checkpoint
+                # temp_url = driver.current_url
+                # print(" >> ", temp_url)
+
+
+                try:
+                    time.sleep(1)
+                    xpath = "//a[contains(text(), 'Download Tender Doc. (Pdf)')]"
+                    download_button = driver.find_element(By.XPATH, xpath)
+                    download_button.click()
+                except Exception as e:
+                    # Handle other exceptions while clicking 'Custom Search' button
+                    print(f"Download Tender Doc. (Pdf) button - Exception")
+                    for window_handle in filter(lambda handle: handle != initial_handle, handles):
+                        driver.switch_to.window(window_handle)
+                        time.sleep(0.25)
+                        driver.close()
+                    driver.switch_to.window(initial_handle)
+                    time.sleep(2)
+                    continue
+
+                handles = driver.window_handles
+                time.sleep(0.25)
+                driver.switch_to.window(handles[2])
+
+
+                # # Define a function to wait for the page to fully load
+                # def page_fully_loaded(driver):
+                #     return driver.execute_script("return document.readyState") == "complete"
+
+                # # Wait for the page to fully load
+                # WebDriverWait(driver, 10).until(page_fully_loaded)
+
+                pdf_url = driver.current_url
+                print(" ", pdf_url)
+
+                # # Execute JavaScript to get the current window's URL
+                # window_url = driver.execute_script("return window.location.href;")
+                # url_pattern = re.compile(r'^https:\/\/www\.ireps\.gov\.in\/ireps\/works\/pdfdocs\/.*\.pdf$')
+
+                # while True:
+                #     if url_pattern.match(pdf_url):
+                #         print("URL is valid. ", pdf_url)
+                #         break
+                #     else:
+                #         print("URL is not valid.")
+                #         time.sleep(0.25)
+                #         pdf_url = driver.current_url
+                #         continue
+
+                if pdf_url.endswith(".pdf"):
+                    download_pdf(pdf_url)
+                else:
+                    for window_handle in filter(lambda handle: handle != initial_handle, handles):
+                        driver.switch_to.window(window_handle)
+                        time.sleep(0.25)
+                        driver.close()
+                    driver.switch_to.window(initial_handle)
+                    continue
+
+                dept_rly, tender_no, name_of_work, bidding_type, tender_type, bidding_system, tender_closing_date_time, date_time_of_uploading_tender, pre_bid_conference_date_time, advertised_value, earnest_money, contract_type = getpdfdata()
+
+                try:
+                    # Calculate due_days
+                    closing_datetime = datetime.datetime.strptime(tender_closing_date_time, '%d/%m/%Y %H:%M')
+                    uploading_datetime = datetime.datetime.strptime(date_time_of_uploading_tender, '%d/%m/%Y %H:%M')
+                    due_days = (closing_datetime - uploading_datetime).days
+                except ValueError as e:
+                    due_days = " " 
+                    pass
+
+                worksheet1.write(k, 0, zone)
+                worksheet1.write(k, 1, dept_rly)
+                worksheet1.write(k, 2, tender_no)
+                worksheet1.write(k, 3, name_of_work)
+                worksheet1.write(k, 4, tender_type)
+                worksheet1.write(k, 5, tender_closing_date_time)
+                worksheet1.write(k, 6, due_days)
+                worksheet1.write(k, 7, advertised_value)
+                worksheet1.write(k, 8, pdf_url)
+                worksheet1.write(k, 9, bidding_type)
+                worksheet1.write(k, 10, bidding_system)
+                worksheet1.write(k, 11, date_time_of_uploading_tender)
+                worksheet1.write(k, 12, pre_bid_conference_date_time)
+                worksheet1.write(k, 13, earnest_money)
+                worksheet1.write(k, 14, contract_type)
+
+                # Switch back to the initial window
+                for window_handle in filter(lambda handle: handle != initial_handle, handles):
+                    driver.switch_to.window(window_handle)
+                    time.sleep(0.25)
+                    driver.close()
+                driver.switch_to.window(initial_handle)
+
+                if k == tender_count:
+                    last_tender = True
+                else:
+                    last_tender = False
+
+            print("\n")
+
+            if last_tender == True:
+                break
+            else:
+
+                try:
+                    xpath = f"//a[text()='{cnt + 1}']"
+                    for attempt in range(3):
+                        try:
+                            # Wait up to 5 seconds for the element to be clickable
+                            element = WebDriverWait(driver, 5).until(
+                                EC.element_to_be_clickable((By.XPATH, xpath))
+                            )
+                            element.click()
+                            print(f"Successfully clicked page {cnt + 1} on attempt {attempt + 1}")
+                            time.sleep(5)
+                            break  # Success!
+                        except Exception as e:
+                            print(f"Attempt {attempt + 1} failed to click page {cnt + 1}: {e}")
+                            time.sleep(2)
+                    else:
+                        print(f"Failed to click page {cnt + 1} after 3 attempts.")
+
+                except Exception as e:
+                    print(f"Exception while trying to click page {cnt + 1}: {e}")
+
+            if i % 10 == 0:
+                print("\n")
+                try:
+                    # driver.find_element(By.XPATH, f"//a[font[text()='next']]").click()
+                    xpath = "//a[font[text()='next']]"
+                    element = driver.find_element(By.XPATH, xpath)
+                    element.click()
+
+                except Exception as e:
+                    print(f"Element with text 'next' not found")
                     break
 
-                page.wait_for_selector(
-                    "xpath=//*[text()='Organisation Chain']",
-                    state="attached", timeout=20_000)
+            cnt += 1
 
-                row = (page_num * 20) + j
-                ws.write(row,  0, g("//*[text()='Organisation Chain']/parent::*/following-sibling::td[1]", wait=True))
-                ws.write(row,  1, g("//*[text()='Tender Reference Number']/parent::*/following-sibling::td[1]"))
-                ws.write(row,  2, g("//*[text()='Tender ID']/parent::*/following-sibling::td[1]", wait=True))
-                ws.write(row,  3, g("//*[contains(text(),'EMD Amount in')]/following-sibling::td[1]"))
-                ws.write(row,  4, g("//*[text()='Title']/parent::*/following-sibling::td[1]"))
-                ws.write(row,  5, g("//*[text()='Work Description']/parent::*/following-sibling::td[1]"))
-                ws.write(row,  6, g("//*[contains(text(),'Tender Value in')]/following-sibling::td[1]"))
-                ws.write(row,  7, g("//*[text()='Pre Bid Meeting Date']/parent::*/following-sibling::td[1]"))
-                ws.write(row,  8, g("//*[text()='Bid Submission End Date']/parent::*/following-sibling::td[1]"))
-                ws.write(row,  9, g("//*[text()='Published Date']/parent::*/following-sibling::td[1]"))
-                ws.write(row, 10, g("//*[contains(text(),'Tender Type')]/following-sibling::td[1]"))
-                ws.write(row, 11, g("//*[contains(text(),'Tender Category')]/following-sibling::td[1]", wait=True))
-                if self.name not in ("Coal_India", "IOCL", "West_Bengal"):
-                    ws.write(row, 12, g("//*[contains(text(),'Tender Fee in')]/following-sibling::td[1]", wait=True))
-                else:
-                    ws.write(row, 12, None)
-                ws.write(row, 13, g("//*[text()='Location']/parent::*/following-sibling::td[1]"))
-                ws.write(row, 14, g("//*[text()='Period Of Work(Days)']/parent::*/following-sibling::td[1]"))
-                ws.write(row, 15, g("//*[text()='Document Download / Sale End Date']/parent::*/following-sibling::td[1]"))
-                ws.write(row, 16, url_label)
-                ws.write(row, 17, today_str)
-
-                back = page.query_selector(
-                    "xpath=//a[@id='DirectLink_11' and text()='Back']")
-                if back:
-                    back.click()
-                    page.wait_for_timeout(1_000)
-
-                no_scraped += 1
-                log.info("[%s] p%d item%d → total %d",
-                         self.name, page_num + 1, j, no_scraped)
-
-            page_num += 1
-            next_btn = page.query_selector("xpath=.//a[@id='linkFwd']")
-            if not next_btn:
-                break
-            next_btn.click()
-            page.wait_for_timeout(2_000)
-            new_links = page.query_selector_all(
-                "xpath=//a[starts-with(@id,'DirectLink_0')]")
-            links_count = len(new_links)
-            if links_count == 0:
-                break
-
+        # Create the folder if it doesn't exist
+        file_path = f"{program_files_dir}/{org_name}"
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+        # Close the workbook and print a message
         workbook.close()
-        packaging()
-        log.info("[%s] Done. %d tenders scraped.", self.name, no_scraped)
-        return no_scraped, None
+        print("Zone data Saved.")
+
+    return True
 
 
-# =======================
-# EMAIL
-# =======================
-def send_mail(merged_file: str | None = None, attach_log: bool = False):
-    body = (
-        "Automated notification: State tender scraping has completed.\n"
-        "Please verify the results.\n\n"
-        f"System    : {platform.system()}\n"
-        f"Hostname  : {platform.node()}\n"
-        f"IP        : {socket.gethostbyname(socket.gethostname())}\n"
-        f"Directory : {BASE_DIR}\n"
-        f"OS        : {platform.version()}\n\n"
-        + json.dumps(error_data, indent=4)
-    )
 
-    msg = MIMEMultipart()
-    msg["From"]    = SENDER_EMAIL
-    msg["To"]      = ", ".join(NOTIFY_EMAILS)
-    msg["Subject"] = EMAIL_SUBJECT
-    msg.attach(MIMEText(body, "plain"))
-
-    if merged_file and os.path.exists(merged_file) and os.path.getsize(merged_file) > 0:
-        with open(merged_file, "rb") as att:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(att.read())
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition",
-                            f"attachment; filename={os.path.basename(merged_file)}")
-            msg.attach(part)
-        log.info("Attaching merged file: %s", os.path.basename(merged_file))
-    else:
-        log.warning("Merged file not found or empty — skipping attachment.")
-
-    if attach_log and ATTACH_LOG and os.path.exists(_LOG_FILENAME) and os.path.getsize(_LOG_FILENAME) > 0:
-        with open(_LOG_FILENAME, "rb") as att:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(att.read())
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition",
-                            f"attachment; filename={os.path.basename(_LOG_FILENAME)}")
-            msg.attach(part)
-
-    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+# extract message from adb device connected
+def get_sms_message():
+    message = ""
+    device_serial = get_current_device_serial()
+    command = f'adb -s {device_serial} shell content query --uri content://sms/inbox'
     try:
+        output = subprocess.check_output(command, shell=True, encoding='utf-8').strip()
+        lines = output.split('\n')
+        # print(lines)
+        for line in lines:
+            # Extract the date from the message
+            match_date = re.search(r'date=(\d+)', line)
+            if match_date:
+                timestamp = int(match_date.group(1)) / 1000  # Convert from milliseconds to seconds
+                message_date = datetime.datetime.fromtimestamp(timestamp).date()
+                # Compare the message date with today's date
+                if message_date == datetime.datetime.today().date():  # Use datetime.today() instead of datetime.date.today()
+                    # print(line) 
+                    if 'IREPS' in line:
+                        match_otp = re.search(r'body=(\d{6})', line)
+                        if match_otp:
+                            six_digits = match_otp.group(1)
+                            print(f"OTP: {six_digits}")
+
+                            # print(type(message_date))
+                            # countdown_timer(10)
+
+                            # Read the JSON file
+                            with open(config_file_path, 'r') as file:
+                                config_data = json.load(file)
+
+                            # Update the OTP date and OTP
+                            config_data['otp_date'] = message_date.strftime("%Y-%m-%d")
+                            config_data['otp'] = six_digits
+
+                            # Write the updated data back to the file
+                            with open(config_file_path, 'w') as file:
+                                json.dump(config_data, file, indent=4)
+
+                            # with open(otp_full_path, "w") as file:
+                            #     file.write(f"Date: {message_date}\n")
+                            #     file.write(f"OTP: {six_digits}\n")
+                            return False
+                        else:
+                            print("Pattern not found.")
+                    else:
+                        message = "Messages not yet received; retring to access the OTP"
+        print(message)               
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}")
+        return True
+
+
+
+
+# generate OTP
+def generate_otp(driver, mobile_no):
+    driver.refresh()
+    time.sleep(3)
+    
+    # print("Current Mobile No. :", mobile_no)
+    driver, Verification_code = get_verification(driver)
+    # mobile_no = input("Enter 10 digit Mobile No: ")
+    driver.execute_script("document.getElementById('mobileNo').value='" + mobile_no + "'")
+
+    driver.execute_script("document.getElementById('verification').value='" + Verification_code + "'")
+    
+
+    driver.find_element("xpath", "//input[@value='Get OTP']").click()
+    time.sleep(3)
+
+    try:
+        # Check if an alert is present
+        alert = driver.switch_to.alert
+        print("Alert Text:", alert.text)
+        if alert.text == "you have entered wrong verification code.":
+            alert.accept()
+            generate_otp(driver, mobile_no)
+        else:
+            alert.accept()
+
+        alert.accept()  # Close the alert (Accept/Dismiss)
+    except NoAlertPresentException:
+        print("No alert present after clicking 'Get OTP'")
+    return driver
+
+
+
+
+def tenders_main(org_number, org_name, mobile_no, program_files_dir):
+    mail_triger = False
+    chromedriver_autoinstaller.install()  # Check if the current version of chromedriver exists
+                                        # and if it doesn't exist, download it automatically,
+                                        # then add chromedriver to path
+
+    # org_number, org_name, mobile_no, otp_file_location, program_file_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[4]
+    # print(org_number, org_name, mobile_no, otp_file_location)
+
+    options = Options()
+    options.add_argument("--disable-application-cache")  # Disable application cache
+    options.add_argument('--ignore-certificate-errors')
+    if browser == "0":
+        options.add_argument("--headless")
+    
+    # options.add_argument("--disable-gpu")  
+    options.add_argument("--log-level=3")
+    # # Set the download path
+    # options.add_experimental_option("prefs", {
+    #     "download.default_directory": initial_download,
+    #     "download.prompt_for_download": False,
+    #     "download.directory_upgrade": True,
+    #     "safebrowsing.enabled": True
+    #     })
+
+    driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(60)  
+    driver.implicitly_wait(10) # Wait for a few seconds to see the results  
+
+    # Open a website
+    # Open the URL and wait for the page title to be "IREPS - Guest Login"
+    url = "https://www.ireps.gov.in/epsn/anonymSearch.do"
+    
+
+    while True:
+        try:
+            driver.get(url)
+            break # break the loop if no exception occurs
+        except Exception as e:
+            print(f"{url} - url exception") # - {e}") # print the exception message
+            print("Retrying...") # print a retry message
+            time.sleep(2)
+
+    driver = is_under_maintenance(driver, url)
+    print("Current Mobile NO. ", mobile_no)
+
+    if is_otp_valid():
+        driver = login(driver, mobile_no)
+        mail_triger = tenders(driver, org_number, org_name, program_files_dir)
+    else:
+        driver = generate_otp(driver, mobile_no)
+        countdown_timer("generate_otp", 60)
+
+        while get_sms_message():
+            countdown_timer("get_sms_message", 20)
+            get_sms_message()
+
+        driver = login(driver, mobile_no)
+        mail_triger = tenders(driver, org_number, org_name, program_files_dir)
+    print(f"\n\nExeting.... From {org_name}.\n\n")
+    driver.close()
+
+    return mail_triger
+
+
+
+
+
+
+
+def merge_xlsx_files_in_folders(folders, output_directory, program_file_dir):
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+        print(f"Folder '{output_directory}' created successfully.")
+
+    b = datetime.datetime.now()
+    merged_data = pd.DataFrame()
+
+    for folder_name in folders:
+        folder_path = os.path.join(program_file_dir, folder_name[1])  # Replace 'path_to_root_folder' with the actual root folder path
+
+        if os.path.exists(folder_path) and os.path.isdir(folder_path):
+            files = os.listdir(folder_path)
+
+            for file in files:
+                if file.endswith('.xlsx'):
+                    file_path = os.path.join(folder_path, file)
+                    data = pd.read_excel(file_path)
+
+                    # Filter out columns that are all-NA
+                    data = data.dropna(how='all', axis=1)
+
+                    # Add the current date to the data
+                    b = datetime.datetime.now()
+                    data['Get Date'] = b.strftime("%d/%m/%Y")
+
+                    # Concatenate the filtered data
+                    merged_data = pd.concat([merged_data, data], ignore_index=True)
+
+    # Create the timestamp for the filename
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+    # Output file path and name
+    output_filename = f"merged_IREPS_{timestamp}.xlsx"
+    output_file_path = os.path.join(output_directory, output_filename)
+
+    # Save the merged data to the output file
+    merged_data.to_excel(output_file_path, index=False)
+
+    return output_file_path
+
+# # This function is use to merge xlsx files by first argument is (list of tuples)
+# def merge_xlsx_files_in_folders(folders, output_directory, program_file_dir):
+#     if not os.path.exists(output_directory):
+#         os.makedirs(output_directory)
+#         print(f"Folder '{output_directory}' created successfully.")
+
+#     b = datetime.datetime.now()
+#     merged_data = pd.DataFrame()
+
+#     for folder_name in folders:
+#         folder_path = os.path.join(program_files_dir, folder_name[1])  # Replace 'path_to_root_folder' with the actual root folder path
+        
+#         # Check if the folder exists before attempting to process it
+#         if os.path.exists(folder_path) and os.path.isdir(folder_path):
+#             files = os.listdir(folder_path)
+
+#             for file in files:
+#                 if file.endswith('.xlsx'):
+#                     file_path = os.path.join(folder_path, file)
+#                     data = pd.read_excel(file_path)
+#                     b = datetime.datetime.now()
+#                     data['Get Date'] = b.strftime("%d/%m/%Y")
+#                     merged_data = pd.concat([merged_data, data], ignore_index=True)
+
+#         # else:
+#         #     # Folder not found, so skip this iteration
+#         #     print(f"Folder not found: {folder_path}. Skipping.")
+
+#     # Create the timestamp for the filename
+#     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+#     # Output file path and name
+#     output_filename = f"merged_IREPS_{timestamp}.xlsx"
+#     output_file_path = os.path.join(output_directory, output_filename)
+
+#     # Save the merged data to the output file
+#     merged_data.to_excel(output_file_path, index=False)
+
+#     return output_file_path
+
+
+
+
+
+
+
+
+
+# # Load dump location from JSON file
+# def load_email_flag():
+#     try:
+#         with open(config_file_path, "r") as file:
+#             data = json.load(file)
+#             return data.get("email_flag")
+#     except FileNotFoundError:
+#         return None
+
+
+
+
+
+
+
+# smtp send status 
+def send_mail(program_file_dir, all_email_ids):
+    # Check if read_email_ids list has at least one item
+    
+    if all_email_ids:
+        sender_email = "tenderautomation@royalconstruct.in"
+        receiver_emails = all_email_ids # ["am7059141480@gmail.com", "vmaskara@royalconstruct.com"] 
+        subject = "IREPS Tender Scraping Report"
+
+        notification_text = "This is an automated notification to inform you that the IREPS tender scraping process has been completed. please verify the results \n\n"
+
+        # Gather system information
+        system_info = (
+            f"System: {platform.system()}\n"
+            f"Hostname: {socket.gethostname()}\n"
+            f"IP Address: {socket.gethostbyname(socket.gethostname())}\n"
+            f"Working Directory: {os.getcwd()}\n"
+            f"Windows Version: {platform.win32_ver()[1]}\n"
+        )
+        # Convert dictionary to JSON format
+        # json_data = json.dumps(exception_data_Dictionary, indent=4)
+
+        # Concatenate the notification text, system information, and json data
+        # email_body = f"{notification_text}\n{system_info}\n\nLog Data:\n{json_data}"
+        email_body = f"{notification_text}\n{system_info}"
+
+        # # Remove brackets from JSON data
+        # json_object = json.loads(json_data)
+        # if isinstance(json_object, list):
+        #     json_data = json_object[0]
+
+        # Create a MIMEText object
+        msg = MIMEMultipart()
+        msg.attach(MIMEText(email_body))
+
+        # Set the sender and recipients
+        msg['From'] = sender_email
+        msg['To'] = ", ".join(receiver_emails)
+        msg['Subject'] = subject
+
+        # # Attach the log file if requested
+        # if attach_log:
+        #     if os.path.exists(log_file_path) and os.path.getsize(log_file_path) > 0:
+        #         with open(log_file_path, "rb") as attachment:
+        #             part = MIMEBase("application", "octet-stream")
+        #             part.set_payload((attachment).read())
+        #             encoders.encode_base64(part)
+        #             part.add_header("Content-Disposition", "attachment; filename= %s" % log_file_path)
+        #             msg.attach(part)
+        #     else:
+        #         print(f"The file {log_file_path} is empty or does not exist. Not attaching to the email.")
+        #         return
+
+        # Attach the first .xlsx file found in the specified folder
+        xlsx_folder = program_files_dir
+
+        # List all files in the folder
+        files_in_folder = os.listdir(xlsx_folder)
+
+        # Find the first .xlsx file
+        for filename in files_in_folder:
+            if filename.endswith(".xlsx"):
+                xlsx_file_path = os.path.join(xlsx_folder, filename)
+                with open(xlsx_file_path, "rb") as attachment:
+                    part = MIMEBase("application", "octet-stream")
+                    part.set_payload((attachment).read())
+                    encoders.encode_base64(part)
+                    part.add_header("Content-Disposition", f"attachment; filename={filename}")
+                    msg.attach(part)
+                break  # Attach the first .xlsx file found 
+
+        # Establish a connection to the SMTP server
+        smtp_server = "smtp.office365.com"
+        port = 587
+
+        username = "tenderautomation@royalconstruct.in"
+        password = "Auto@2023"
+
+        # Start the connection to the SMTP server
+        server = smtplib.SMTP(smtp_server, port)
         server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASS)
-        server.sendmail(SENDER_EMAIL, NOTIFY_EMAILS, msg.as_string())
-        log.info("Report email sent.")
-    except Exception as exc:
-        log.error("Email failed: %s", exc)
-    finally:
+        server.login(username, password)
+
+        # Send the email
+        server.sendmail(sender_email, receiver_emails, msg.as_string())
+
+        # Close the connection
         server.quit()
 
+        print("\nEmail sent successfully!")
+        pass
 
-# =======================
-# MERGE XLSX
-# =======================
-# =======================
-# MERGE XLSX
-# =======================
 
-def merge_xlsx_files(source_dir: str, temp_dir: str) -> str:
-    # Create temp directory if it doesn't exist
-    os.makedirs(temp_dir, exist_ok=True)
 
-    # Create an empty DataFrame to store merged data
-    merged = pd.DataFrame()
 
-    # List to store file paths of individual Excel files
-    individual_files = []
 
-    # Loop through all files in the source directory
-    for fname in os.listdir(source_dir):
 
-        # Skip files that are not .xlsx OR already merged files
-        if not fname.endswith(".xlsx") or fname.startswith(MERGED_FILE_PREFIX):
-            continue
 
-        # Full path of the file
-        fpath = os.path.join(source_dir, fname)
+class Tee:
+    def __init__(self, *files):
+        self.files = files
 
-        try:
-            # Read Excel file into DataFrame
-            df = pd.read_excel(fpath)
+    def write(self, text):
+        for file in self.files:
+            file.write(text)
 
-            # Drop columns where all values are NaN (empty columns)
-            df = df.dropna(how="all", axis=1)
-
-            # Replace "NA" string values with 0.00
-            df.replace("NA", 0.00, inplace=True)
-
-            # Add a new column "Get Date" with current date
-            df["Get Date"] = datetime.datetime.now().strftime("%d/%m/%Y")
-
-            # Append current DataFrame to merged DataFrame
-            merged = pd.concat([merged, df], ignore_index=True)
-
-            # Store file path for possible deletion later
-            individual_files.append(fpath)
-
-        except Exception as exc:
-            # Log warning if file cannot be read
-            log.warning("Could not read %s: %s", fpath, exc)
-
-    # Create timestamp for unique output filename
-    ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-    # Define output file path
-    output_path = os.path.join(PROGRAM_FILES_DIR, f"{MERGED_FILE_PREFIX}_{ts}.xlsx")
-
-    # Save merged DataFrame to Excel file
-    merged.to_excel(output_path, index=False)
-
-    # Log success message
-    log.info("Master xlsx → %s", output_path)
-
-    # Optional: delete original individual files after merging
-    if DELETE_INDIVIDUAL_AFTER_MERGE:
-        for fpath in individual_files:
+    def flush(self):
+        for file in self.files:
             try:
-                # Delete file
-                os.remove(fpath)
-
-                # Log deletion
-                log.info("Deleted individual file: %s", os.path.basename(fpath))
-
-            except Exception as exc:
-                # Log warning if deletion fails
-                log.warning("Could not delete %s: %s", fpath, exc)
-
-    # Return the path of the merged Excel file
-    return output_path
+                file.flush()
+            except AttributeError:
+                pass  # Ignore AttributeError when file is closed
 
 
-# =======================
-# LOG RETENTION
-# =======================
-def purge_old_logs():
-    """Delete log files older than LOG_RETENTION_DAYS from LOG_DIR."""
-    if LOG_RETENTION_DAYS <= 0:
-        return
-    cutoff = time.time() - LOG_RETENTION_DAYS * 86400
-    for fname in os.listdir(LOG_DIR):
-        fpath = os.path.join(LOG_DIR, fname)
-        try:
-            if os.path.isfile(fpath) and os.path.getmtime(fpath) < cutoff:
-                os.remove(fpath)
-                log.info("Purged old log: %s", fname)
-        except Exception as exc:
-            log.warning("Could not purge %s: %s", fname, exc)
 
+def log_to_file(filename):
+    # Create a filename based on current date and time
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    new_filename = f"{filename}_{timestamp}.txt"
+    full_filename = os.path.join(script_dir_path, program_files_dir, "consolelog", new_filename)
+    # print(full_filename)
+    # time.sleep(1000)
+    # packge = packaging()
+    
 
-# =======================
-# OPTION-VALUE LABEL LOOKUP  (for readable log output)
-# =======================
-_OPTION_LABELS: dict[str, dict[int, str]] = {
-    "TenderType":     {0: "Select", 1: "Open Tender", 2: "Limited Tender"},
-    "valueCriteria":  {0: "Select", 1: "EMD", 2: "Tender Fee",
-                       3: "Processing Fee", 4: "ECV"},
-    "valueParameter": {0: "Select", 1: "Equal", 2: "LessThan",
-                       3: "GreaterThan", 4: "Between"},
-    "tenderCategory": {0: "All", 1: "Goods", 2: "Services", 3: "Works"},
-    "formContract":   {0: "All", 1: "Buy", 2: "Empanelment", 3: "EOI",
-                       4: "EPC Contract", 5: "Fixed-rate", 6: "Item Rate",
-                       7: "Lump-sum", 8: "Multi-stage", 9: "Percentage",
-                       10: "Piece-work", 11: "PPP-BoT-HAM", 12: "PPP-BoT-ToT",
-                       13: "PPP-DBFOT", 14: "QCBS", 15: "Sale", 16: "Supply",
-                       17: "Tender cum Auction", 18: "Turn-key", 19: "Works"},
-    "PaymentMode":    {0: "All", 1: "Offline", 2: "Online",
-                       3: "Both(Online/Offline)", 4: "Not Applicable"},
-    "dateCriteria":   {0: "None", 1: "Published Date",
-                       2: "Doc Download Start", 3: "Doc Download End",
-                       4: "Bid Submit Start", 5: "Bid Submit End"},
-    "ProductCategory": {
-        0: "All", 1: "Access Control System", 2: "Advertisement Services",
-        3: "Agricultural or Forestry", 4: "Allotment of Space",
-        5: "AMC/ Maintenance Contracts", 6: "Architecture/Interior Design",
-        7: "Audio-Visual Equipment", 8: "Chemicals/Minerals",
-        9: "Civil Construction Goods", 10: "Civil Works",
-        11: "Civil Works - Bridges", 12: "Civil Works - Buildings",
-        13: "Civil Works - Highways", 14: "Civil Works - Others",
-        15: "Civil Works - Roads", 16: "Civil Works - Water Works",
-        17: "Coal Works", 18: "Computer- Data Processing",
-        19: "Computer- H/W", 20: "Computer- S/W",
-        21: "Construction Works", 22: "Consultancy",
-        23: "Consumables (Hospital / Lab)",
-        24: "Consumables - Paper/Printing", 25: "Consumables- Raw materials",
-        26: "Drilling Works", 27: "Drugs and Pharmaceutical Products",
-        28: "Edible Oils", 29: "Electrical Goods/Equipment",
-        30: "Electrical Works", 31: "Electronic Components",
-        32: "Electronics Equipment", 33: "Equipments (Hospital / Lab)",
-        34: "Facility Management Services", 35: "Financial and Insurance",
-        36: "Food Products", 37: "Furniture/ Fixture",
-        38: "Government Stock/Security", 39: "Hiring of Vehicles",
-        40: "Hotel/ Catering", 41: "Housekeeping/ Cleaning",
-        42: "Information Technology", 43: "Info. Tech. Services",
-        44: "Job Works", 45: "Lab Chemistry Reagents",
-        46: "Laboratory and scientific equipment", 47: "Land/Building",
-        48: "Machineries/ Mechanical Engg Items",
-        49: "Machinery and Machining Tools", 50: "Manpower Supply",
-        51: "Marine Services", 52: "Marine Works",
-        53: "Mechanical Tools and Equipment", 54: "Medical Equipments/Waste",
-        55: "Medicines", 56: "Metal Fabrication", 57: "Metals",
-        58: "Metals - Ferrous", 59: "Miscellaneous Goods",
-        60: "Miscellaneous Services", 61: "Miscellaneous Works",
-        62: "Network /Communication Equipments",
-        63: "Non Consumables (Hospital / Lab)", 64: "OFC Laying Works",
-        65: "Oil/Gas", 66: "Paint / Enamel Works", 67: "Pipe Laying Works",
-        68: "Pipes and Pipe related activities",
-        69: "Plant Protection Input/Equipment Works",
-        70: "Power/Energy Projects/Products", 71: "Publishing/Printing",
-        72: "Pumps/Motors", 73: "Renting out / Licensing out",
-        74: "Repair and Maintenance Services", 75: "Shipping Services",
-        76: "Shipping/ Transportation/ Vehicle", 77: "Stone Works",
-        78: "Supply, Erection and Commissioning",
-        79: "Support/Maintenance Service", 80: "Surveillance Equipments",
-        81: "Survey and Investigation services",
-        82: "Water Equipments/ Meter/ Drilling/ Boring",
-    },
-}
+    # Open the log file in append mode for regular output
+    log_file = open(full_filename, 'a')
 
+    # Redirect stdout to the log file and console simultaneously
+    sys.stdout = Tee(sys.stdout, log_file)
 
-def _vc_label(field: str, value: int) -> str:
-    """Return human-readable label for a form field option value."""
-    return _OPTION_LABELS.get(field, {}).get(int(value), str(value))
-
-
-# =======================
-# PORTAL PROCESSING
-# =======================
-def process_portal(portal: tuple[str, str]):
-    """
-    Run every enabled search criterion for one portal in sequence.
-    Each criterion carries the complete set of form fields to fill.
-    """
-    name, url = portal
-    enabled = [c for c in search_criteria if c.get("enabled", True)]
-
-    for idx, criterion in enumerate(enabled, start=1):
-        label = criterion.get("label", f"Pass {idx}")
-        log.info(
-            "\n|%s> Pass %d for portal: %s\n"
-            "|    Label           : %s\n"
-            "|    Tender Type     : %s\n"
-            "|    Value Criteria  : %s  |  Value Param: %s  |  From: %s  |  To: %s\n"
-            "|    Category        : %s  |  Product: %s  |  Contract: %s\n"
-            "|    Date Criteria   : %s  |  From: %s  |  To: %s |",
-            "-" * (8 + idx), idx, name,
-            label,
-            _vc_label("TenderType",     criterion.get("tender_type",      1)),
-            _vc_label("valueCriteria",  criterion.get("value_criteria",   4)),
-            _vc_label("valueParameter", criterion.get("value_param",      3)),
-            criterion.get("from_value", 0),
-            criterion.get("to_value",   0),
-            _vc_label("tenderCategory",  criterion.get("tender_category",  0)),
-            _vc_label("ProductCategory", criterion.get("product_category", 0)),
-            _vc_label("formContract",    criterion.get("form_contract",    0)),
-            _vc_label("dateCriteria",    criterion.get("date_criteria",    0)),
-            criterion.get("from_date", "") or "—",
-            criterion.get("to_date",   "") or "—",
-        )
-        Extr(name, url, TEMP_DIR, criterion=criterion).run()
-
-
-def run_all_portals_threaded():
-    log.info("Starting pool: %d workers for %d portals",
-             MAX_WORKERS, len(organizations))
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=MAX_WORKERS,
-        thread_name_prefix="scraper",
-    ) as pool:
-        futures = {
-            pool.submit(process_portal, portal): portal[0]
-            for portal in organizations
-        }
-        for future in concurrent.futures.as_completed(futures):
-            name = futures[future]
-            try:
-                future.result()
-                log.info("[%s] Worker finished.", name)
-            except Exception as exc:
-                log.error("[%s] Worker raised unexpected exception: %s", name, exc)
-                with _error_lock:
-                    error_data[name] = {
-                        "Status": "Not Successfully Run",
-                        "Total Tenders Scraped": 0,
-                        "Error": str(exc),
-                    }
-    log.info("All portals complete.")
-
-
-# =======================
-# MAIN PIPELINE
-# =======================
-def run_scraping():
-    purge_old_logs()
-    delete_folder(TEMP_DIR)
-    create_folder_if_not_exists(TEMP_DIR)
-
-    run_all_portals_threaded()
-
-    create_folder_if_not_exists(DUMP_LOCATION)
-    for fname in os.listdir(TEMP_DIR):
-        if not fname.endswith(".xlsx"):
-            continue
-        src = os.path.join(TEMP_DIR, fname)
-        try:
-            df = pd.read_excel(src)
-            df.replace("NA", 0.00, inplace=True)
-            df.to_excel(os.path.join(OUTPUT_DIR, fname), index=False)
-            if DUMP_LOCATION and DUMP_LOCATION != OUTPUT_DIR:
-                create_folder_if_not_exists(DUMP_LOCATION)
-                df.to_excel(os.path.join(DUMP_LOCATION, fname), index=False)
-        except Exception as exc:
-            log.warning("Could not process %s: %s", fname, exc)
-
-    log.info("Individual files saved to %s", OUTPUT_DIR)
-    merged_path = merge_xlsx_files(TEMP_DIR, TEMP_DIR)
-    send_mail(merged_file=merged_path, attach_log=True)
-
-    if merged_path and os.path.exists(merged_path):
-        dest_path = os.path.join(OUTPUT_DIR, os.path.basename(merged_path))
-        try:
-            shutil.move(merged_path, dest_path)
-            log.info("Moved merged file to output folder: %s", dest_path)
-        except Exception as exc:
-            log.warning("Could not move merged file to output folder: %s", exc)
-
-
-# =======================
-# ENTRY POINT
-# =======================
-def main() -> int:
-    delete_xlsx_files(PROGRAM_FILES_DIR)
-    start = time.time()
-    log.info("=== State Tender Scraper started ===")
-    log.info("BASE_DIR   : %s", BASE_DIR)
-    log.info("OUTPUT_DIR : %s", OUTPUT_DIR)
-    log.info("LOG_DIR    : %s", LOG_DIR)
-    log.info("Log file   : %s", _LOG_FILENAME)
-    log.info("Headless   : %s", BROWSER_HEADLESS)
-    log.info("Portals    : %d", len(organizations))
-    log.info("Workers    : %d", MAX_WORKERS)
-
-    exit_code = 0
     try:
-        run_scraping()
-    except Exception as exc:
-        log.exception("Fatal error: %s", exc)
-        exit_code = 1
+
+            
+        # Your main script logic goes here
+        print(f"Starting script execution at {timestamp}\n")
+
+        # Record the start time
+        start_time = time.time()
+
+
+
+
+
+
+
+
+        def f2():
+            
+
+
+            # opening message 
+            print("\n|-----| Welcome to the IREPS Scraping system! |-----|\n")
+
+
+            # # Read the JSON file & Update the email_flag
+            # with open(config_file_path, 'r') as file:
+            #     config_data = json.load(file)
+            # config_data['email_flag'] = "False"
+            # # config_data['otp_file_location'] = config_file_path
+
+            # # Write the updated data back to the file
+            # with open(config_file_path, 'w') as file:
+            #     json.dump(config_data, file, indent=4)
+
+            # Deleting xlsx files
+            delete_xlsx_files(program_files_dir)
+
+
+            # Deleting each Folder by the name of Orgination from "Program_Files (ireps_tender_scraping)"
+            for orginazation in organizations:
+                file_path = os.path.join(script_dir_path, program_files_dir, orginazation[1]) 
+                delete_folder(file_path)
+
+
+
+            os.makedirs(temp_dir_path, exist_ok=True)
+
+            if adb_value == "1":
+                subprocess.check_output(['adb', 'connect', adb_device_ip]).decode('utf-8').splitlines()
+                adb = is_android_device_connected(log_file)
+                if adb == False:
+                    message = "Please connect an Android device with USB debugging enabled."
+                    subject = "IREPS No Android device found."
+                    no_adb_mail(subject, message, receiver_emailids)
+            else:
+                adb = True
+            
+            if adb:
+                # Iterating through all Orginazation 
+                for orginazation in organizations:
+                    org_number, org_name = orginazation
+                    print(f"\nRunning Orginazation. {org_number}: {org_name}")
+                    mail_triger_main = tenders_main(org_number, org_name, mobile_no, program_files_dir)
+                    print("\n")
+                    # subprocess.run([sys.executable, "Tender.py", org_number, org_name, mobile_no, otp_file_location, program_files_dir])
+                    # subprocess.run(["Tender.exe", org_number, org_name, mobile_no, otp_file_location, program_file_dir])
+
+
+            # master xlsx output directory
+            output_directory1 = dump_location  # Replace with the first output directory path
+            output_directory2 = program_files_dir   # Replace with the second output directory path
+            # creating master xlsx
+            output_file_path = merge_xlsx_files_in_folders(organizations, output_directory1, program_files_dir)
+            print("Master xlsx saved in ", output_file_path)
+            time.sleep(2)
+            output_file_path2 = merge_xlsx_files_in_folders(organizations, output_directory2, program_files_dir)
+            print("Master xlsx saved in ", output_file_path2)
+            time.sleep(2)
+
+
+
+
+            # Final E-Mail with Master xlsx and (log file if exist)
+            # mail_triger = load_email_flag()
+            # if mail_triger == "True":
+            #     if os.path.exists(log_file_path) and os.path.getsize(log_file_path) > 0:
+            #         print(program_file_dir, all_email_ids, log_file_path)
+            #         send_mail(program_file_dir, all_email_ids, log_file_path, attach_log=True)
+            #     else:
+            #         print(program_file_dir, all_email_ids, log_file_path)
+            #         send_mail(program_file_dir, all_email_ids, log_file_path, attach_log=False)
+
+            if mail_triger_main == True:
+                print(program_files_dir, receiver_emailids)
+                send_mail(program_files_dir, receiver_emailids)
+
+
+
+
+
+
+
+
+        def f1():
+            for _ in range(3):
+                if check_internet_connection():
+                    f2()
+                    countdown_timer("Exeting in ... ", 10)
+                    break
+            sys.exit()  # This will exit the Python interpreter
+
+        f1()
+
+
+
+        # Record the end time
+        end_time = time.time()
+        # Calculate the total time taken
+        total_time = end_time - start_time
+        # Convert seconds to hours, minutes, and seconds
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        print(f"Total time taken by the Program: {int(hours)} hours, {int(minutes)} minutes, {int(seconds)} seconds")
+
+
+
+
+
+
+
+        print("Exiting... from tenders download program.")    
+        # Example: Simulate an exception
+        # Uncomment the following line to simulate an exception
+        # raise ValueError("This is a simulated exception")
+
+        print("\nScript execution completed.")
+
+    except Exception as e:
+        # Print the exception details to both console and error log file
+        error_message = f"Exception occurred during script execution: {e}"
+        print(error_message, file=sys.stderr)
+        log_file.write(error_message + "\n")  # Write the error message to log file
+
     finally:
-        h, rem = divmod(int(time.time() - start), 3600)
-        m, s   = divmod(rem, 60)
-        log.info("=== Finished in %dh %dm %ds  exit=%d ===", h, m, s, exit_code)
-        for handler in logging.getLogger().handlers:
-            handler.flush()
-            handler.close()
-        delete_folder(CAP_DIR)
-
-    return exit_code
-
+        # Restore the original stdout
+        sys.stdout = sys.__stdout__  # Restore original stdout
+        log_file.close()              # Close the log file
 
 if __name__ == "__main__":
-    sys.exit(main())
+    create_folder_if_not_exists(os.path.join(script_dir_path, program_files_dir, "consolelog"))
+    log_to_file("ireps-tenders-output_log")
+    sys.exit()
