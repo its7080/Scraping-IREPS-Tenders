@@ -23,26 +23,24 @@ if exist "%PYTHON_EXE%" (
 )
 echo ------------------------------------------------------------
 echo  1. Create/update venv and install requirements
-echo  2. Run configuration editor
-echo  3. Run IREPS scraper
-echo  4. Run analysis dashboard
-echo  5. Run CAPTCHA solver utility
-echo  6. Open command prompt with venv activated
-echo  7. Exit
+echo  2. Run IREPS main GUI
+echo  3. Run IREPS scraper (console)
+echo  4. Run CAPTCHA solver utility
+echo  5. Open command prompt with venv activated
+echo  6. Exit
 echo ------------------------------------------------------------
 set "MENU_CHOICE="
-set /p "MENU_CHOICE=Select an option [1-7]: "
+set /p "MENU_CHOICE=Select an option [1-6]: "
 
 if "%MENU_CHOICE%"=="1" goto SETUP_VENV
-if "%MENU_CHOICE%"=="2" goto CONFIG_EDITOR
+if "%MENU_CHOICE%"=="2" goto MAIN_GUI
 if "%MENU_CHOICE%"=="3" goto SCRAPER
-if "%MENU_CHOICE%"=="4" goto DASHBOARD
-if "%MENU_CHOICE%"=="5" goto CAPTCHA_SOLVER
-if "%MENU_CHOICE%"=="6" goto OPEN_SHELL
-if "%MENU_CHOICE%"=="7" goto EXIT_MENU
+if "%MENU_CHOICE%"=="4" goto CAPTCHA_SOLVER
+if "%MENU_CHOICE%"=="5" goto OPEN_SHELL
+if "%MENU_CHOICE%"=="6" goto EXIT_MENU
 
 echo.
-echo Invalid option. Please choose a number from 1 to 7.
+echo Invalid option. Please choose a number from 1 to 6.
 pause
 goto MENU
 
@@ -51,24 +49,19 @@ call :CREATE_OR_UPDATE_VENV
 pause
 goto MENU
 
-:CONFIG_EDITOR
+:MAIN_GUI
 call :ENSURE_VENV || goto MENU
-call :RUN_PYTHON_IN_DIR "Scraping" "IREPS_scraping_gui.py"
+call :RUN_PYTHON_IN_DIR "." "IREPS_scraping_gui.py"
 goto MENU
 
 :SCRAPER
 call :ENSURE_VENV || goto MENU
-call :RUN_PYTHON_IN_DIR "Scraping" "IREPS_Tenders.py"
-goto MENU
-
-:DASHBOARD
-call :ENSURE_VENV || goto MENU
-call :RUN_PYTHON_IN_DIR "Analysis" "script.py"
+call :RUN_PYTHON_IN_DIR "." "IREPS_Tenders.py"
 goto MENU
 
 :CAPTCHA_SOLVER
 call :ENSURE_VENV || goto MENU
-call :RUN_PYTHON_IN_DIR "Scraping\Program_Files" "captcha_solver.py"
+call :RUN_PYTHON_IN_DIR "Program_Files" "captcha_solver.py"
 goto MENU
 
 :OPEN_SHELL
